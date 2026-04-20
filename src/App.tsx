@@ -17,6 +17,8 @@ import PassengerTrips from "./pages/passenger/Trips.tsx";
 import MyBookings from "./pages/passenger/MyBookings.tsx";
 import Confirmation from "./pages/passenger/Confirmation.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import MyAccount from "./pages/MyAccount.tsx";
+import ProtectedRoute2 from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -52,6 +54,16 @@ const App = () => (
             <Route path="/app"                            element={paxRoute(<PassengerTrips />)} />
             <Route path="/app/bookings"                   element={paxRoute(<MyBookings />)} />
             <Route path="/app/confirmation/:reference"    element={paxRoute(<Confirmation />)} />
+
+            {/* Shared — both roles can manage their own profile */}
+            <Route
+              path="/account"
+              element={
+                <ProtectedRoute2>
+                  <MyAccount />
+                </ProtectedRoute2>
+              }
+            />
 
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />

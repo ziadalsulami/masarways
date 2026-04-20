@@ -46,12 +46,12 @@ export default function SeatMap({
 
   return (
     <div>
-      {/* Legend */}
+      {/* Legend — explicit colours per spec: white = available, green = selected, grey = taken */}
       <div className="mb-4 flex flex-wrap gap-3 text-xs text-muted-foreground">
-        <Legend className="border border-border bg-background" label="Available" />
-        <Legend className="bg-primary text-primary-foreground" label="Selected" />
-        <Legend className="border-2 border-primary bg-primary/10" label="Your seat" />
-        <Legend className="bg-muted text-muted-foreground line-through" label="Taken" />
+        <Legend className="border border-border bg-white" label="Available" />
+        <Legend className="bg-green-600 text-white" label="Selected" />
+        <Legend className="border-2 border-green-600 bg-green-600/10" label="Your seat" />
+        <Legend className="bg-gray-400 text-white line-through" label="Taken" />
       </div>
 
       {/* The carriage */}
@@ -191,12 +191,12 @@ function Seat({
       title={isTaken ? "Taken" : isOwn ? "Your seat" : `Seat ${n}`}
       className={`h-9 rounded-md text-xs font-medium transition ${
         isTaken
-          ? "cursor-not-allowed bg-muted text-muted-foreground line-through"
+          ? "cursor-not-allowed bg-gray-400 text-white line-through"
           : isOwn
-          ? "border-2 border-primary bg-primary/10 text-primary"
+          ? "border-2 border-green-600 bg-green-600/10 text-green-700 dark:text-green-400"
           : isChosen
-          ? "scale-105 bg-primary text-primary-foreground shadow"
-          : "border border-border bg-background hover:border-primary hover:bg-accent/40"
+          ? "scale-105 bg-green-600 text-white shadow"
+          : "border border-border bg-white text-gray-800 hover:border-green-600 hover:bg-green-50"
       }`}
     >
       {n}

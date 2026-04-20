@@ -60,6 +60,12 @@ export default function PassengerTrips() {
   const [chosenSeat, setChosenSeat] = useState<number | null>(null);
   const [booking, setBooking] = useState(false);
 
+  // ── Search filters ────────────────────────────────────────────────
+  // The passenger picks an optional destination + earliest date. When set,
+  // we filter the trips list client-side so the UX stays instant.
+  const [filterDest, setFilterDest] = useState<string>("all");
+  const [filterDate, setFilterDate] = useState<string>(""); // yyyy-mm-dd
+
   /** Fetch trips + active bookings. Called on mount + on every Realtime event. */
   const loadAll = async () => {
     const nowIso = new Date().toISOString();
@@ -115,7 +121,26 @@ export default function PassengerTrips() {
     return { takenByTrip: taken, mineByTrip: mine, ownSeatByTrip: ownSeat };
   }, [bookings, profile?.id]);
 
-  const selected = trips.find((t) => t.id === selectedId) ?? null;
+  // Apply search filters (destination + earliest date) to the trips list.
+  const visibleTrips = useMemo(() => {
+    return trips.filter((t) => {
+      if (filterDest !== "all" && t.destination !== filterDest) return false;
+      if (filterDate) {
+        // Compare on the user's local date (yyyy-mm-dd) for a friendly match.
+        const tripDay = new Date(t.departure_at).toISOString().slice(0, 10);
+        if (tripDay < filterDate) return false;
+      }
+      return true;
+    });
+  }, [trips, filterDest, filterDate]);
+
+  // Distinct destination options for the dropdown.
+  const destinations = useMemo(
+    () => Array.from(new Set(trips.map((t) => t.destination))).sort(),
+    [trips],
+  );
+
+  const selected = visibleTrips.find((t) => t.id === selectedId) ?? trips.find((t) => t.id === selectedId) ?? null;
 
   // Reset the chosen seat whenever the selected trip changes.
   useEffect(() => setChosenSeat(null), [selectedId]);
@@ -170,6 +195,7 @@ export default function PassengerTrips() {
       nav={[
         { to: "/app", label: "Trips" },
         { to: "/app/bookings", label: "My bookings" },
+        { to: "/account", label: "My account" },
       ]}
     >
       <div className="mb-6 flex items-end justify-between">
@@ -184,10 +210,49 @@ export default function PassengerTrips() {
         </span>
       </div>
 
+      {/* ── Search filters ───────────────────────────────────────── */}
+      {/* Simple filter bar: pick a destination + earliest departure date. */}
+      <div className="mb-5 grid gap-3 rounded-lg border border-border bg-card p-3 sm:grid-cols-[1fr_1fr_auto]">
+        <div>
+          <label className="mb-1 block text-xs text-muted-foreground">Where to?</label>
+          <select
+            value={filterDest}
+            onChange={(e) => setFilterDest(e.target.value)}
+            className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
+          >
+            <option value="all">Any destination</option>
+            {destinations.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-muted-foreground">From date</label>
+          <input
+            type="date"
+            value={filterDate}
+            onChange={(e) => setFilterDate(e.target.value)}
+            className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setFilterDest("all");
+            setFilterDate("");
+          }}
+          className="h-9 self-end rounded-md border border-border bg-background px-3 text-sm hover:bg-accent"
+        >
+          Reset
+        </button>
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-[1fr_minmax(0,1.2fr)]">
         {/* LEFT — trip list */}
         <div className="grid content-start gap-3">
-          {trips.map((t) => {
+          {visibleTrips.map((t) => {
             const seatsTaken = takenByTrip[t.id]?.size ?? 0;
             const seatsLeft = t.total_seats - seatsTaken;
             const pct = (seatsTaken / t.total_seats) * 100;
@@ -233,8 +298,12 @@ export default function PassengerTrips() {
               </button>
             );
           })}
-          {trips.length === 0 && (
-            <p className="text-muted-foreground">No upcoming trips at the moment.</p>
+          {visibleTrips.length === 0 && (
+            <p className="text-muted-foreground">
+              {trips.length === 0
+                ? "No upcoming trips at the moment."
+                : "No trips match your search — try a different destination or date."}
+            </p>
           )}
         </div>
 
