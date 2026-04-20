@@ -90,55 +90,56 @@ export default function AdminPassengers() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((p) => {
+            {filtered.flatMap((p) => {
               const list = byPassenger[p.id] ?? [];
               const active = list.filter((b) => b.status === "active").length;
               const expanded = openId === p.id;
-              return (
-                <>
-                  <tr
-                    key={p.id}
-                    className="cursor-pointer border-t border-border hover:bg-muted/30"
-                    onClick={() => setOpenId(expanded ? null : p.id)}
-                  >
-                    <td className="px-2 py-2 text-muted-foreground">
-                      {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              const out: JSX.Element[] = [
+                <tr
+                  key={p.id}
+                  className="cursor-pointer border-t border-border hover:bg-muted/30"
+                  onClick={() => setOpenId(expanded ? null : p.id)}
+                >
+                  <td className="px-2 py-2 text-muted-foreground">
+                    {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  </td>
+                  <td className="px-4 py-2 font-mono">{p.masar_id}</td>
+                  <td className="px-4 py-2">{p.full_name}</td>
+                  <td className="px-4 py-2">{p.email}</td>
+                  <td className="px-4 py-2 whitespace-nowrap">{p.phone}</td>
+                  <td className="px-4 py-2 whitespace-nowrap">{format(new Date(p.created_at), "yyyy-MM-dd")}</td>
+                  <td className="px-4 py-2">{active} active · {list.length} total</td>
+                </tr>,
+              ];
+              if (expanded) {
+                out.push(
+                  <tr key={`${p.id}-detail`} className="border-t border-border bg-muted/10">
+                    <td></td>
+                    <td colSpan={6} className="px-4 py-3">
+                      {list.length === 0 ? (
+                        <span className="text-muted-foreground">No bookings.</span>
+                      ) : (
+                        <ul className="space-y-1 text-xs">
+                          {list.map((b) => (
+                            <li key={b.id} className="flex items-center justify-between">
+                              <span>
+                                <span className="font-mono">{b.reference}</span> ·{" "}
+                                {b.trips?.origin} → {b.trips?.destination} ·{" "}
+                                {b.trips && format(new Date(b.trips.departure_at), "yyyy-MM-dd HH:mm")} ·{" "}
+                                Seat #{b.seat_number}
+                              </span>
+                              <span className={`rounded px-1.5 py-0.5 ${b.status === "active" ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground"}`}>
+                                {b.status}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </td>
-                    <td className="px-4 py-2 font-mono">{p.masar_id}</td>
-                    <td className="px-4 py-2">{p.full_name}</td>
-                    <td className="px-4 py-2">{p.email}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">{p.phone}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">{format(new Date(p.created_at), "yyyy-MM-dd")}</td>
-                    <td className="px-4 py-2">{active} active · {list.length} total</td>
-                  </tr>
-                  {expanded && (
-                    <tr className="border-t border-border bg-muted/10">
-                      <td></td>
-                      <td colSpan={6} className="px-4 py-3">
-                        {list.length === 0 ? (
-                          <span className="text-muted-foreground">No bookings.</span>
-                        ) : (
-                          <ul className="space-y-1 text-xs">
-                            {list.map((b) => (
-                              <li key={b.id} className="flex items-center justify-between">
-                                <span>
-                                  <span className="font-mono">{b.reference}</span> ·{" "}
-                                  {b.trips?.origin} → {b.trips?.destination} ·{" "}
-                                  {b.trips && format(new Date(b.trips.departure_at), "yyyy-MM-dd HH:mm")} ·{" "}
-                                  Seat #{b.seat_number}
-                                </span>
-                                <span className={`rounded px-1.5 py-0.5 ${b.status === "active" ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground"}`}>
-                                  {b.status}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </td>
-                    </tr>
-                  )}
-                </>
-              );
+                  </tr>,
+                );
+              }
+              return out;
             })}
             {filtered.length === 0 && (
               <tr><td colSpan={7} className="px-4 py-6 text-center text-muted-foreground">No passengers match.</td></tr>
