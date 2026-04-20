@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AppShell from "@/components/AppShell";
 import { Card } from "@/components/ui/card";
+import { ADMIN_NAV } from "./nav";
 import { format, subDays, startOfDay } from "date-fns";
 import {
   BarChart,
