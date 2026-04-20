@@ -107,10 +107,9 @@ export default function PassengerTrips() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id]);
 
-  // Auto-select the first trip when trips first load.
-  useEffect(() => {
-    if (!selectedId && trips.length) setSelectedId(trips[0].id);
-  }, [trips, selectedId]);
+  // The seat-picker modal opens whenever a trip is selected. Closing it
+  // (via overlay click or close button) clears the selection so the user is
+  // back to the trip list without scrolling.
 
   // Derived: taken seats per trip + which trips this user actively booked.
   const { takenByTrip, mineByTrip, ownSeatByTrip } = useMemo(() => {
