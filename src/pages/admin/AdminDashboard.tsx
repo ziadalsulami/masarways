@@ -1,16 +1,30 @@
 /**
- * Administrator dashboard.
+ * Administrator dashboard — KPIs + charts + occupancy table.
  *
- * Shows headline KPIs (total trains, upcoming trips, active bookings,
- * revenue from active bookings) and a list of upcoming trips with
- * occupancy. Numbers come from Supabase via plain SELECTs — RLS is
- * already configured so admins can read everything.
+ * Charts (recharts):
+ *   1. Bookings per day (last 14 days) — bar chart
+ *   2. Revenue by route             — horizontal bar chart
+ *   3. Top trips by occupancy       — visual bars in the table
+ *
+ * Live updates:
+ *   Subscribes to bookings changes via Realtime so KPIs and charts
+ *   re-compute whenever a passenger books or cancels.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AppShell from "@/components/AppShell";
 import { Card } from "@/components/ui/card";
-import { format } from "date-fns";
+import { format, subDays, startOfDay } from "date-fns";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
+import { TrainFront, Ticket, Users, Wallet } from "lucide-react";
 
 interface TripRow {
   id: string;
@@ -20,136 +34,279 @@ interface TripRow {
   total_seats: number;
   price_sar: number;
   trains: { code: string; name: string } | null;
-  active_bookings: number;
 }
 
-interface Stats {
-  trains: number;
-  upcomingTrips: number;
-  activeBookings: number;
-  revenue: number;
+interface BookingRow {
+  id: string;
+  trip_id: string;
+  status: "active" | "cancelled";
+  created_at: string;
 }
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState<Stats | null>(null);
   const [trips, setTrips] = useState<TripRow[]>([]);
+  const [bookings, setBookings] = useState<BookingRow[]>([]);
+  const [trainCount, setTrainCount] = useState(0);
+  const [passengerCount, setPassengerCount] = useState(0);
 
+  /** Pull everything we need to compute the dashboard. */
+  const loadAll = async () => {
+    const [trainsRes, tripsRes, bookingsRes, paxRes] = await Promise.all([
+      supabase.from("trains").select("id", { count: "exact", head: true }),
+      supabase
+        .from("trips")
+        .select("id, origin, destination, departure_at, total_seats, price_sar, trains(code,name)"),
+      supabase.from("bookings").select("id, trip_id, status, created_at"),
+      supabase
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .like("masar_id", "P%"),
+    ]);
+    setTrainCount(trainsRes.count ?? 0);
+    setTrips((tripsRes.data ?? []) as TripRow[]);
+    setBookings((bookingsRes.data ?? []) as BookingRow[]);
+    setPassengerCount(paxRes.count ?? 0);
+  };
+
+  // Initial load + live updates on bookings.
   useEffect(() => {
-    (async () => {
-      // Pull everything we need to compute KPIs in one round of queries.
-      const nowIso = new Date().toISOString();
-      const [trainsRes, tripsRes, bookingsRes] = await Promise.all([
-        supabase.from("trains").select("id", { count: "exact", head: true }),
-        supabase
-          .from("trips")
-          .select("id, origin, destination, departure_at, total_seats, price_sar, trains(code,name)")
-          .gte("departure_at", nowIso)
-          .order("departure_at", { ascending: true }),
-        supabase.from("bookings").select("trip_id, status").eq("status", "active"),
-      ]);
-
-      const activeBookings = bookingsRes.data ?? [];
-      // Bookings count per trip (used both for the list and for revenue).
-      const perTrip = new Map<string, number>();
-      activeBookings.forEach((b) => perTrip.set(b.trip_id, (perTrip.get(b.trip_id) ?? 0) + 1));
-
-      const tripList: TripRow[] = (tripsRes.data ?? []).map((t: any) => ({
-        ...t,
-        active_bookings: perTrip.get(t.id) ?? 0,
-      }));
-
-      // Revenue = price * active bookings, summed across ALL trips
-      // (we need a tiny extra fetch to include past trips' revenue).
-      const { data: allTrips } = await supabase.from("trips").select("id, price_sar");
-      const priceById = new Map((allTrips ?? []).map((t: any) => [t.id, Number(t.price_sar)]));
-      const revenue = activeBookings.reduce(
-        (sum, b) => sum + (priceById.get(b.trip_id) ?? 0),
-        0,
-      );
-
-      setStats({
-        trains: trainsRes.count ?? 0,
-        upcomingTrips: tripList.length,
-        activeBookings: activeBookings.length,
-        revenue,
-      });
-      setTrips(tripList);
-    })();
+    loadAll();
+    const channel = supabase
+      .channel("admin-bookings-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, () => loadAll())
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
+
+  // ---- Derived datasets -------------------------------------------------
+
+  const priceById = useMemo(
+    () => new Map(trips.map((t) => [t.id, Number(t.price_sar)])),
+    [trips],
+  );
+
+  const activeBookings = useMemo(
+    () => bookings.filter((b) => b.status === "active"),
+    [bookings],
+  );
+
+  // KPIs
+  const stats = useMemo(() => {
+    const revenue = activeBookings.reduce((s, b) => s + (priceById.get(b.trip_id) ?? 0), 0);
+    const upcoming = trips.filter((t) => new Date(t.departure_at) > new Date()).length;
+    return {
+      trains: trainCount,
+      passengers: passengerCount,
+      activeBookings: activeBookings.length,
+      upcoming,
+      revenue,
+    };
+  }, [activeBookings, priceById, trips, trainCount, passengerCount]);
+
+  // Bookings per day (last 14 days)
+  const dailyData = useMemo(() => {
+    const days = Array.from({ length: 14 }, (_, i) =>
+      startOfDay(subDays(new Date(), 13 - i)),
+    );
+    const counts = new Map(days.map((d) => [d.toISOString(), 0]));
+    activeBookings.forEach((b) => {
+      const k = startOfDay(new Date(b.created_at)).toISOString();
+      if (counts.has(k)) counts.set(k, (counts.get(k) ?? 0) + 1);
+    });
+    return days.map((d) => ({
+      day: format(d, "MMM d"),
+      bookings: counts.get(d.toISOString()) ?? 0,
+    }));
+  }, [activeBookings]);
+
+  // Revenue by route
+  const revenueByRoute = useMemo(() => {
+    const map = new Map<string, number>();
+    activeBookings.forEach((b) => {
+      const trip = trips.find((t) => t.id === b.trip_id);
+      if (!trip) return;
+      const key = `${trip.origin} → ${trip.destination}`;
+      map.set(key, (map.get(key) ?? 0) + Number(trip.price_sar));
+    });
+    return Array.from(map.entries())
+      .map(([route, revenue]) => ({ route, revenue }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 6);
+  }, [activeBookings, trips]);
+
+  // Upcoming-trips table with occupancy
+  const upcomingTrips = useMemo(() => {
+    const now = Date.now();
+    return trips
+      .filter((t) => new Date(t.departure_at).getTime() > now)
+      .sort((a, b) => +new Date(a.departure_at) - +new Date(b.departure_at))
+      .map((t) => ({
+        ...t,
+        booked: activeBookings.filter((b) => b.trip_id === t.id).length,
+      }));
+  }, [trips, activeBookings]);
 
   return (
     <AppShell
       nav={[
         { to: "/admin", label: "Dashboard" },
-        { to: "/admin/trips", label: "Trips" },
-        { to: "/admin/passengers", label: "Passengers" },
       ]}
     >
-      <h1 className="mb-6 text-2xl font-semibold">Administrator Dashboard</h1>
-
-      <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Stat label="Trains" value={stats?.trains ?? "—"} />
-        <Stat label="Upcoming trips" value={stats?.upcomingTrips ?? "—"} />
-        <Stat label="Active bookings" value={stats?.activeBookings ?? "—"} />
-        <Stat
-          label="Revenue (SAR)"
-          value={stats ? stats.revenue.toFixed(2) : "—"}
-        />
+      <div className="mb-6 flex items-end justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Administrator Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
+            Live operational overview — updates as passengers book and cancel.
+          </p>
+        </div>
+        <span className="hidden items-center gap-1 rounded-full border border-border bg-card px-2 py-1 text-xs text-muted-foreground sm:inline-flex">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" /> live
+        </span>
       </div>
 
+      {/* KPI row */}
+      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
+        <Stat icon={<TrainFront className="h-4 w-4" />} label="Trains"           value={stats.trains} />
+        <Stat icon={<Users className="h-4 w-4" />}      label="Passengers"       value={stats.passengers} />
+        <Stat icon={<Ticket className="h-4 w-4" />}     label="Active bookings"  value={stats.activeBookings} />
+        <Stat icon={<Wallet className="h-4 w-4" />}     label="Revenue (SAR)"    value={stats.revenue.toFixed(2)} />
+      </div>
+
+      {/* Charts row */}
+      <div className="mb-6 grid gap-4 lg:grid-cols-2">
+        <Card className="p-4">
+          <div className="mb-2 text-sm font-medium">Bookings — last 14 days</div>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dailyData}>
+                <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
+                <XAxis dataKey="day" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                <Tooltip
+                  contentStyle={{
+                    background: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: 6,
+                    fontSize: 12,
+                  }}
+                />
+                <Bar dataKey="bookings" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <div className="mb-2 text-sm font-medium">Revenue by route (top 6)</div>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={revenueByRoute} layout="vertical" margin={{ left: 24 }}>
+                <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
+                <XAxis type="number" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                <YAxis
+                  type="category"
+                  dataKey="route"
+                  width={120}
+                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: 6,
+                    fontSize: 12,
+                  }}
+                  formatter={(v: number) => [`${v.toFixed(2)} SAR`, "Revenue"]}
+                />
+                <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      </div>
+
+      {/* Upcoming trips occupancy */}
       <Card className="overflow-hidden">
         <div className="border-b border-border px-4 py-3 text-sm font-medium">
           Upcoming trips · occupancy
         </div>
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-            <tr>
-              <th className="px-4 py-2">Train</th>
-              <th className="px-4 py-2">Route</th>
-              <th className="px-4 py-2">Departure</th>
-              <th className="px-4 py-2">Seats</th>
-              <th className="px-4 py-2">Occupancy</th>
-            </tr>
-          </thead>
-          <tbody>
-            {trips.map((t) => {
-              const pct = Math.round((t.active_bookings / t.total_seats) * 100);
-              return (
-                <tr key={t.id} className="border-t border-border">
-                  <td className="px-4 py-2">
-                    {t.trains?.code} <span className="text-muted-foreground">· {t.trains?.name}</span>
-                  </td>
-                  <td className="px-4 py-2">
-                    {t.origin} → {t.destination}
-                  </td>
-                  <td className="px-4 py-2">{format(new Date(t.departure_at), "yyyy-MM-dd HH:mm")}</td>
-                  <td className="px-4 py-2">
-                    {t.active_bookings} / {t.total_seats}
-                  </td>
-                  <td className="px-4 py-2">{pct}%</td>
-                </tr>
-              );
-            })}
-            {trips.length === 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
-                  No upcoming trips.
-                </td>
+                <th className="px-4 py-2">Train</th>
+                <th className="px-4 py-2">Route</th>
+                <th className="px-4 py-2">Departure</th>
+                <th className="px-4 py-2">Seats</th>
+                <th className="px-4 py-2 w-1/3">Occupancy</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {upcomingTrips.map((t) => {
+                const pct = Math.round((t.booked / t.total_seats) * 100);
+                return (
+                  <tr key={t.id} className="border-t border-border">
+                    <td className="px-4 py-2 whitespace-nowrap">
+                      {t.trains?.code}{" "}
+                      <span className="text-muted-foreground">· {t.trains?.name}</span>
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap">
+                      {t.origin} → {t.destination}
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap">
+                      {format(new Date(t.departure_at), "yyyy-MM-dd HH:mm")}
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap">
+                      {t.booked} / {t.total_seats}
+                    </td>
+                    <td className="px-4 py-2">
+                      <div className="flex items-center gap-2">
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full bg-primary transition-all"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className="w-10 text-right text-xs text-muted-foreground">{pct}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {upcomingTrips.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
+                    No upcoming trips.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </Card>
     </AppShell>
   );
 }
 
-/** Small KPI card. */
-function Stat({ label, value }: { label: string; value: string | number }) {
+/** KPI card with icon. */
+function Stat({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string | number;
+}) {
   return (
-    <Card className="p-4">
-      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="mt-2 text-2xl font-semibold">{value}</div>
+    <Card className="p-4 transition hover:shadow-sm">
+      <div className="flex items-center justify-between">
+        <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
+        <div className="text-muted-foreground">{icon}</div>
+      </div>
+      <div className="mt-2 text-2xl font-semibold tabular-nums">{value}</div>
     </Card>
   );
 }

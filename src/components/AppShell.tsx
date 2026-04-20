@@ -7,7 +7,8 @@ import { ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
-import { TrainFront, LogOut } from "lucide-react";
+import { TrainFront, LogOut, Sun, Moon } from "lucide-react";
+import { useTheme } from "@/lib/theme";
 
 interface Props {
   children: ReactNode;
@@ -17,6 +18,7 @@ interface Props {
 
 export default function AppShell({ children, nav = [] }: Props) {
   const { profile, role, signOut } = useAuth();
+  const { theme, toggle } = useTheme();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -26,7 +28,7 @@ export default function AppShell({ children, nav = [] }: Props) {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border bg-card">
+      <header className="sticky top-0 z-30 border-b border-border bg-card/80 backdrop-blur">
         <div className="container mx-auto flex h-14 items-center justify-between gap-4 px-4">
           <div className="flex items-center gap-6">
             <Link to="/" className="flex items-center gap-2 font-semibold text-primary">
@@ -54,6 +56,9 @@ export default function AppShell({ children, nav = [] }: Props) {
                 </div>
               </div>
             )}
+            <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
             <Button variant="ghost" size="sm" onClick={handleSignOut}>
               <LogOut className="mr-1 h-4 w-4" /> Sign out
             </Button>
