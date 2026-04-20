@@ -17,6 +17,8 @@ import PassengerTrips from "./pages/passenger/Trips.tsx";
 import MyBookings from "./pages/passenger/MyBookings.tsx";
 import Confirmation from "./pages/passenger/Confirmation.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import MyAccount from "./pages/MyAccount.tsx";
+import ProtectedRoute2 from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
