@@ -210,10 +210,49 @@ export default function PassengerTrips() {
         </span>
       </div>
 
+      {/* ── Search filters ───────────────────────────────────────── */}
+      {/* Simple filter bar: pick a destination + earliest departure date. */}
+      <div className="mb-5 grid gap-3 rounded-lg border border-border bg-card p-3 sm:grid-cols-[1fr_1fr_auto]">
+        <div>
+          <label className="mb-1 block text-xs text-muted-foreground">Where to?</label>
+          <select
+            value={filterDest}
+            onChange={(e) => setFilterDest(e.target.value)}
+            className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
+          >
+            <option value="all">Any destination</option>
+            {destinations.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-muted-foreground">From date</label>
+          <input
+            type="date"
+            value={filterDate}
+            onChange={(e) => setFilterDate(e.target.value)}
+            className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setFilterDest("all");
+            setFilterDate("");
+          }}
+          className="h-9 self-end rounded-md border border-border bg-background px-3 text-sm hover:bg-accent"
+        >
+          Reset
+        </button>
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-[1fr_minmax(0,1.2fr)]">
         {/* LEFT — trip list */}
         <div className="grid content-start gap-3">
-          {trips.map((t) => {
+          {visibleTrips.map((t) => {
             const seatsTaken = takenByTrip[t.id]?.size ?? 0;
             const seatsLeft = t.total_seats - seatsTaken;
             const pct = (seatsTaken / t.total_seats) * 100;
@@ -259,8 +298,12 @@ export default function PassengerTrips() {
               </button>
             );
           })}
-          {trips.length === 0 && (
-            <p className="text-muted-foreground">No upcoming trips at the moment.</p>
+          {visibleTrips.length === 0 && (
+            <p className="text-muted-foreground">
+              {trips.length === 0
+                ? "No upcoming trips at the moment."
+                : "No trips match your search — try a different destination or date."}
+            </p>
           )}
         </div>
 
