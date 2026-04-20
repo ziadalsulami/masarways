@@ -170,6 +170,7 @@ export default function PassengerTrips() {
       nav={[
         { to: "/app", label: "Trips" },
         { to: "/app/bookings", label: "My bookings" },
+        { to: "/account", label: "My account" },
       ]}
     >
       <div className="mb-6 flex items-end justify-between">
