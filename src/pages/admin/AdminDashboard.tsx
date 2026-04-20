@@ -149,11 +149,7 @@ export default function AdminDashboard() {
   }, [trips, activeBookings]);
 
   return (
-    <AppShell
-      nav={[
-        { to: "/admin", label: "Dashboard" },
-      ]}
-    >
+    <AppShell nav={ADMIN_NAV}>
       <div className="mb-6 flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Administrator Dashboard</h1>
