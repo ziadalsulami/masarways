@@ -7,7 +7,8 @@ import { ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
-import { TrainFront, LogOut } from "lucide-react";
+import { TrainFront, LogOut, Sun, Moon } from "lucide-react";
+import { useTheme } from "@/lib/theme";
 
 interface Props {
   children: ReactNode;
