@@ -8,12 +8,26 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index.tsx";
 import Auth from "./pages/Auth.tsx";
 import AdminDashboard from "./pages/admin/AdminDashboard.tsx";
+import AdminTrips from "./pages/admin/AdminTrips.tsx";
+import AdminTrains from "./pages/admin/AdminTrains.tsx";
+import AdminPassengers from "./pages/admin/AdminPassengers.tsx";
+import AdminBookings from "./pages/admin/AdminBookings.tsx";
+import AdminReports from "./pages/admin/AdminReports.tsx";
 import PassengerTrips from "./pages/passenger/Trips.tsx";
 import MyBookings from "./pages/passenger/MyBookings.tsx";
 import Confirmation from "./pages/passenger/Confirmation.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
+
+/** Helper to wrap each admin page with the role guard. */
+const adminRoute = (el: JSX.Element) => (
+  <ProtectedRoute requireRole="admin">{el}</ProtectedRoute>
+);
+/** Helper to wrap each passenger page with the role guard. */
+const paxRoute = (el: JSX.Element) => (
+  <ProtectedRoute requireRole="passenger">{el}</ProtectedRoute>
+);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -27,40 +41,17 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
 
             {/* Administrator module */}
-            <Route
-              path="/admin"
-              element={
-                <ProtectedRoute requireRole="admin">
-                  <AdminDashboard />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/admin"            element={adminRoute(<AdminDashboard />)} />
+            <Route path="/admin/trips"      element={adminRoute(<AdminTrips />)} />
+            <Route path="/admin/trains"     element={adminRoute(<AdminTrains />)} />
+            <Route path="/admin/passengers" element={adminRoute(<AdminPassengers />)} />
+            <Route path="/admin/bookings"   element={adminRoute(<AdminBookings />)} />
+            <Route path="/admin/reports"    element={adminRoute(<AdminReports />)} />
 
             {/* Passenger module */}
-            <Route
-              path="/app"
-              element={
-                <ProtectedRoute requireRole="passenger">
-                  <PassengerTrips />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/app/bookings"
-              element={
-                <ProtectedRoute requireRole="passenger">
-                  <MyBookings />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/app/confirmation/:reference"
-              element={
-                <ProtectedRoute requireRole="passenger">
-                  <Confirmation />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/app"                            element={paxRoute(<PassengerTrips />)} />
+            <Route path="/app/bookings"                   element={paxRoute(<MyBookings />)} />
+            <Route path="/app/confirmation/:reference"    element={paxRoute(<Confirmation />)} />
 
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />

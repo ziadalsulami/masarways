@@ -93,3 +93,96 @@ export function downloadReceipt(d: ReceiptData) {
 
   doc.save(`MASAR-${d.reference}.pdf`);
 }
+
+/* -----------------------------------------------------------------------
+ * Report PDF — used by the admin Reports page.
+ * Renders KPIs, a daily breakdown table, and a top-routes table.
+ * --------------------------------------------------------------------- */
+
+export interface ReportData {
+  from: string; // yyyy-MM-dd
+  to: string;
+  summary: { total: number; active: number; cancelled: number; revenue: number };
+  daily: { day: string; active: number; cancelled: number; revenue: number }[];
+  routes: { route: string; revenue: number }[];
+}
+
+export function downloadReport(r: ReportData) {
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const left = 56;
+  let y = 64;
+
+  // Header
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(20);
+  doc.text("MASAR — Operations Report", left, y);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  y += 18;
+  doc.text(`Period: ${r.from} → ${r.to}`, left, y);
+  y += 12;
+  doc.text(`Generated: ${format(new Date(), "yyyy-MM-dd HH:mm")}`, left, y);
+
+  // Separator
+  y += 14;
+  doc.setDrawColor(200);
+  doc.line(left, y, 540, y);
+
+  // KPI block
+  y += 22;
+  doc.setFont("helvetica", "bold");
+  doc.text("Summary", left, y);
+  doc.setFont("helvetica", "normal");
+  const kpi = (label: string, value: string) => {
+    y += 16;
+    doc.text(label, left, y);
+    doc.text(value, left + 200, y);
+  };
+  kpi("Total bookings:",     String(r.summary.total));
+  kpi("Active bookings:",    String(r.summary.active));
+  kpi("Cancelled bookings:", String(r.summary.cancelled));
+  kpi("Revenue (SAR):",      r.summary.revenue.toFixed(2));
+
+  // Daily breakdown table
+  y += 30;
+  doc.setFont("helvetica", "bold");
+  doc.text("Daily breakdown", left, y);
+  y += 14;
+  doc.setFontSize(9);
+  doc.text("Day",        left,        y);
+  doc.text("Active",     left + 160,  y);
+  doc.text("Cancelled",  left + 230,  y);
+  doc.text("Revenue",    left + 320,  y);
+  doc.setFont("helvetica", "normal");
+  doc.line(left, y + 2, 540, y + 2);
+
+  r.daily.forEach((d) => {
+    y += 13;
+    if (y > 780) { doc.addPage(); y = 64; }
+    doc.text(d.day,                      left,        y);
+    doc.text(String(d.active),           left + 160,  y);
+    doc.text(String(d.cancelled),        left + 230,  y);
+    doc.text(d.revenue.toFixed(2),       left + 320,  y);
+  });
+
+  // Top routes
+  y += 30;
+  if (y > 720) { doc.addPage(); y = 64; }
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.text("Top routes by revenue", left, y);
+  y += 14;
+  doc.setFontSize(9);
+  doc.text("Route",   left,       y);
+  doc.text("Revenue", left + 320, y);
+  doc.setFont("helvetica", "normal");
+  doc.line(left, y + 2, 540, y + 2);
+  r.routes.forEach((rt) => {
+    y += 13;
+    if (y > 780) { doc.addPage(); y = 64; }
+    doc.text(rt.route,                left,        y);
+    doc.text(rt.revenue.toFixed(2),   left + 320,  y);
+  });
+
+  doc.save(`MASAR-report-${r.from}_${r.to}.pdf`);
+}
