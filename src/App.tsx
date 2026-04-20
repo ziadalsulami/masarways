@@ -55,6 +55,16 @@ const App = () => (
             <Route path="/app/bookings"                   element={paxRoute(<MyBookings />)} />
             <Route path="/app/confirmation/:reference"    element={paxRoute(<Confirmation />)} />
 
+            {/* Shared — both roles can manage their own profile */}
+            <Route
+              path="/account"
+              element={
+                <ProtectedRoute2>
+                  <MyAccount />
+                </ProtectedRoute2>
+              }
+            />
+
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />
           </Routes>

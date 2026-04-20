@@ -27,8 +27,8 @@ import { toast } from "sonner";
 
 /** Split a stored phone like "+966500000000" into dial code + 10-digit local part. */
 function splitPhone(stored: string): { dial: string; local: string } {
-  const found = COUNTRIES.find((c) => stored.startsWith(c.dial));
-  if (found) return { dial: found.dial, local: stored.slice(found.dial.length) };
+  const found = COUNTRIES.find((c) => stored.startsWith(c.code));
+  if (found) return { dial: found.code, local: stored.slice(found.code.length) };
   return { dial: "+966", local: stored.replace(/^\+?\d{1,4}/, "") };
 }
 
@@ -174,8 +174,8 @@ export default function MyAccount() {
                   </SelectTrigger>
                   <SelectContent>
                     {COUNTRIES.map((c) => (
-                      <SelectItem key={c.dial + c.code} value={c.dial}>
-                        {c.flag} {c.dial}
+                      <SelectItem key={c.code + c.iso} value={c.code}>
+                        {c.flag} {c.code}
                       </SelectItem>
                     ))}
                   </SelectContent>
