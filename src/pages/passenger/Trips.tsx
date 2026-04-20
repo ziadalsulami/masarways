@@ -23,12 +23,18 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import AppShell from "@/components/AppShell";
-import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { downloadReceipt } from "@/lib/pdf";
 import { TrainFront } from "lucide-react";
 import SeatMap from "@/components/SeatMap";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface Trip {
   id: string;
@@ -101,10 +107,9 @@ export default function PassengerTrips() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id]);
 
-  // Auto-select the first trip when trips first load.
-  useEffect(() => {
-    if (!selectedId && trips.length) setSelectedId(trips[0].id);
-  }, [trips, selectedId]);
+  // The seat-picker modal opens whenever a trip is selected. Closing it
+  // (via overlay click or close button) clears the selection so the user is
+  // back to the trip list without scrolling.
 
   // Derived: taken seats per trip + which trips this user actively booked.
   const { takenByTrip, mineByTrip, ownSeatByTrip } = useMemo(() => {
@@ -249,88 +254,87 @@ export default function PassengerTrips() {
         </button>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_minmax(0,1.2fr)]">
-        {/* LEFT — trip list */}
-        <div className="grid content-start gap-3">
-          {visibleTrips.map((t) => {
-            const seatsTaken = takenByTrip[t.id]?.size ?? 0;
-            const seatsLeft = t.total_seats - seatsTaken;
-            const pct = (seatsTaken / t.total_seats) * 100;
-            const isSelected = t.id === selectedId;
-            const alreadyBooked = mineByTrip.has(t.id);
-            return (
-              <button
-                key={t.id}
-                onClick={() => setSelectedId(t.id)}
-                className={`group rounded-lg border p-4 text-left transition ${
-                  isSelected
-                    ? "border-primary bg-accent/40 shadow-sm"
-                    : "border-border bg-card hover:border-primary/40"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="font-medium">
-                    {t.origin} → {t.destination}
-                  </div>
-                  <div className="text-sm font-semibold">{Number(t.price_sar).toFixed(2)} SAR</div>
+      {/* Trip list — full-width grid of cards. Clicking a card opens a centered
+          modal with the live seat map, so the user never needs to scroll to see
+          availability. */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {visibleTrips.map((t) => {
+          const seatsTaken = takenByTrip[t.id]?.size ?? 0;
+          const seatsLeft = t.total_seats - seatsTaken;
+          const pct = (seatsTaken / t.total_seats) * 100;
+          const alreadyBooked = mineByTrip.has(t.id);
+          return (
+            <button
+              key={t.id}
+              onClick={() => {
+                setChosenSeat(null);
+                setSelectedId(t.id);
+              }}
+              className="group rounded-lg border border-border bg-card p-4 text-left transition hover:border-primary/60 hover:shadow-md"
+            >
+              <div className="flex items-center justify-between">
+                <div className="font-medium">
+                  {t.origin} → {t.destination}
                 </div>
-                <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                  <TrainFront className="h-3 w-3" />
-                  {t.trains?.code} · {format(new Date(t.departure_at), "EEE d MMM, HH:mm")}
-                </div>
-                {/* Capacity bar */}
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full bg-primary transition-all"
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-                <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                  <span>
-                    {seatsLeft} of {t.total_seats} available
-                  </span>
-                  {alreadyBooked && (
-                    <span className="rounded bg-primary/10 px-1.5 py-0.5 text-primary">
-                      Your seat #{ownSeatByTrip[t.id]}
-                    </span>
-                  )}
-                </div>
-              </button>
-            );
-          })}
-          {visibleTrips.length === 0 && (
-            <p className="text-muted-foreground">
-              {trips.length === 0
-                ? "No upcoming trips at the moment."
-                : "No trips match your search — try a different destination or date."}
-            </p>
-          )}
-        </div>
-
-        {/* RIGHT — live seat map */}
-        <Card className="p-5">
-          {!selected ? (
-            <p className="text-muted-foreground">Select a trip to view its seat map.</p>
-          ) : (
-            <>
-              <div className="mb-3 flex items-start justify-between">
-                <div>
-                  <div className="font-medium">
-                    {selected.origin} → {selected.destination}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {selected.trains?.code} · {selected.trains?.name} ·{" "}
-                    {format(new Date(selected.departure_at), "EEE d MMM, HH:mm")} →{" "}
-                    {format(new Date(selected.arrival_at), "HH:mm")}
-                  </div>
-                </div>
-                <div className="text-right text-sm">
-                  <div className="font-semibold">{Number(selected.price_sar).toFixed(2)} SAR</div>
-                  <div className="text-xs text-muted-foreground">
-                    {selected.total_seats - (takenByTrip[selected.id]?.size ?? 0)} left
-                  </div>
-                </div>
+                <div className="text-sm font-semibold">{Number(t.price_sar).toFixed(2)} SAR</div>
               </div>
+              <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                <TrainFront className="h-3 w-3" />
+                {t.trains?.code} · {format(new Date(t.departure_at), "EEE d MMM, HH:mm")}
+              </div>
+              {/* Capacity bar */}
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+                <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+              </div>
+              <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+                <span>
+                  {seatsLeft} of {t.total_seats} available
+                </span>
+                {alreadyBooked && (
+                  <span className="rounded bg-primary/10 px-1.5 py-0.5 text-primary">
+                    Your seat #{ownSeatByTrip[t.id]}
+                  </span>
+                )}
+              </div>
+            </button>
+          );
+        })}
+        {visibleTrips.length === 0 && (
+          <p className="text-muted-foreground sm:col-span-2 lg:col-span-3">
+            {trips.length === 0
+              ? "No upcoming trips at the moment."
+              : "No trips match your search — try a different destination or date."}
+          </p>
+        )}
+      </div>
+
+      {/* Centered seat-picker modal — opens automatically when a trip is selected. */}
+      <Dialog
+        open={!!selected}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedId(null);
+            setChosenSeat(null);
+          }
+        }}
+      >
+        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+          {selected && (
+            <>
+              <DialogHeader>
+                <DialogTitle>
+                  {selected.origin} → {selected.destination}
+                </DialogTitle>
+                <DialogDescription>
+                  {selected.trains?.code} · {selected.trains?.name} ·{" "}
+                  {format(new Date(selected.departure_at), "EEE d MMM, HH:mm")} →{" "}
+                  {format(new Date(selected.arrival_at), "HH:mm")} ·{" "}
+                  <span className="font-semibold text-foreground">
+                    {Number(selected.price_sar).toFixed(2)} SAR
+                  </span>{" "}
+                  · {selected.total_seats - (takenByTrip[selected.id]?.size ?? 0)} left
+                </DialogDescription>
+              </DialogHeader>
               <SeatMap
                 totalSeats={selected.total_seats}
                 taken={takenByTrip[selected.id] ?? new Set()}
@@ -343,8 +347,8 @@ export default function PassengerTrips() {
               />
             </>
           )}
-        </Card>
-      </div>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }
