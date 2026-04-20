@@ -5,10 +5,10 @@
  * the seeded local accounts (admin@masar.local / passenger@masar.local)
  * with password "1234" — handy for quickly demoing both modules.
  *
- * Sign-up always creates a passenger account. Required fields (name,
- * email, phone) are validated client-side and stored in user metadata
- * so the database trigger can persist them into public.profiles and
- * auto-generate the MASAR ID.
+ * Sign-up always creates a passenger account. The phone number is split
+ * in two: a country-code dropdown (default +966 for Saudi Arabia) and a
+ * 10-digit local part. The two are joined before being stored so the
+ * profile keeps a single canonical phone number like "+966500000000".
  */
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -19,15 +19,26 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { TrainFront } from "lucide-react";
+import { COUNTRIES, DEFAULT_COUNTRY } from "@/lib/countries";
 
-// Strict validation prevents bad data from ever reaching the database.
+// Validate inputs strictly so bad data never reaches the database.
 const signUpSchema = z.object({
   full_name: z.string().trim().min(2, "Name is too short").max(100),
   email: z.string().trim().email("Invalid email").max(255),
-  phone: z.string().trim().min(7, "Invalid phone").max(20),
-  national_id: z.string().trim().max(20).optional().or(z.literal("")),
+  // local phone part: digits only, exactly 10
+  phone_local: z
+    .string()
+    .trim()
+    .regex(/^\d{10}$/, "Phone must be exactly 10 digits"),
   password: z.string().min(4, "Password must be at least 4 characters").max(72),
 });
 
@@ -41,8 +52,8 @@ export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [nationalId, setNationalId] = useState("");
+  const [countryCode, setCountryCode] = useState(DEFAULT_COUNTRY.code);
+  const [phoneLocal, setPhoneLocal] = useState("");
 
   // Once a session + role are known, route the user to the right module.
   useEffect(() => {
@@ -72,12 +83,10 @@ export default function Auth() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Validate input first so we never call the API with bad data.
     const parsed = signUpSchema.safeParse({
       full_name: fullName,
       email,
-      phone,
-      national_id: nationalId,
+      phone_local: phoneLocal,
       password,
     });
     if (!parsed.success) {
@@ -85,18 +94,19 @@ export default function Auth() {
       return;
     }
 
+    // Canonical phone = country code + local digits, e.g. "+966500000000".
+    const fullPhone = `${countryCode}${parsed.data.phone_local}`;
+
     setBusy(true);
     const { error } = await supabase.auth.signUp({
       email: parsed.data.email,
       password: parsed.data.password,
       options: {
-        // Required by Supabase even when auto-confirm is on.
         emailRedirectTo: `${window.location.origin}/`,
         // Read by handle_new_user() trigger to populate public.profiles.
         data: {
           full_name: parsed.data.full_name,
-          phone: parsed.data.phone,
-          national_id: parsed.data.national_id || null,
+          phone: fullPhone,
           role: "passenger", // public sign-up is always a passenger
         },
       },
@@ -183,24 +193,40 @@ export default function Auth() {
                 required
               />
             </div>
+
+            {/* Phone — country code + 10-digit local */}
             <div>
               <Label htmlFor="phone">Phone</Label>
-              <Input
-                id="phone"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+9665..."
-                required
-              />
+              <div className="flex gap-2">
+                <Select value={countryCode} onValueChange={setCountryCode}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COUNTRIES.map((c) => (
+                      <SelectItem key={c.iso} value={c.code}>
+                        <span className="mr-1">{c.flag}</span>
+                        {c.code}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  id="phone"
+                  inputMode="numeric"
+                  maxLength={10}
+                  placeholder="5xxxxxxxx (10 digits)"
+                  value={phoneLocal}
+                  // Strip anything non-numeric so users can't paste bad data.
+                  onChange={(e) => setPhoneLocal(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  required
+                />
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Default is Saudi Arabia (+966). Enter your 10-digit local number.
+              </p>
             </div>
-            <div>
-              <Label htmlFor="national_id">National ID (optional)</Label>
-              <Input
-                id="national_id"
-                value={nationalId}
-                onChange={(e) => setNationalId(e.target.value)}
-              />
-            </div>
+
             <div>
               <Label htmlFor="password">Password</Label>
               <Input
