@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AppShell from "@/components/AppShell";
 import { Card } from "@/components/ui/card";
+import { ADMIN_NAV } from "./nav";
 import { format, subDays, startOfDay } from "date-fns";
 import {
   BarChart,
@@ -149,11 +150,7 @@ export default function AdminDashboard() {
   }, [trips, activeBookings]);
 
   return (
-    <AppShell
-      nav={[
-        { to: "/admin", label: "Dashboard" },
-      ]}
-    >
+    <AppShell nav={ADMIN_NAV}>
       <div className="mb-6 flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Administrator Dashboard</h1>

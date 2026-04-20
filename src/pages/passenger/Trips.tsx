@@ -3,7 +3,7 @@
  *
  * Layout:
  *   - left: list of upcoming trips, each card highlights selection
- *   - right: live seat map of the selected trip with a legend
+ *   - right: live train-carriage seat map of the selected trip
  *
  * Live updates:
  *   We subscribe to Postgres changes on public.bookings via Supabase
@@ -14,7 +14,7 @@
  * client (for fast feedback) and via DB constraints (the source of truth):
  *   - cannot book trips in the past   → query filters out past departures
  *   - cannot pick a taken seat        → seat list excludes active bookings
- *   - cannot book more seats than exist → guarded before insert
+ *   - cannot book more seats than exist → guarded by total_seats grid
  *   - one active booking per (trip, passenger) → DB unique index
  *   - no seat double-booking            → DB unique index
  */
@@ -24,11 +24,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import AppShell from "@/components/AppShell";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { downloadReceipt } from "@/lib/pdf";
 import { TrainFront } from "lucide-react";
+import SeatMap from "@/components/SeatMap";
 
 interface Trip {
   id: string;
@@ -68,6 +68,7 @@ export default function PassengerTrips() {
         .from("trips")
         .select("id, origin, destination, departure_at, arrival_at, total_seats, price_sar, trains(code,name)")
         .gte("departure_at", nowIso)
+        .eq("status", "scheduled")
         .order("departure_at", { ascending: true }),
       supabase
         .from("bookings")
@@ -83,8 +84,6 @@ export default function PassengerTrips() {
     if (!profile) return;
     loadAll();
 
-    // Listens to all changes (insert/update/delete) on bookings and
-    // refreshes the local state. Cheap because the table is small.
     const channel = supabase
       .channel("bookings-live")
       .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, () => loadAll())
@@ -244,129 +243,39 @@ export default function PassengerTrips() {
           {!selected ? (
             <p className="text-muted-foreground">Select a trip to view its seat map.</p>
           ) : (
-            <SeatMap
-              trip={selected}
-              taken={takenByTrip[selected.id] ?? new Set()}
-              ownSeat={ownSeatByTrip[selected.id]}
-              chosen={chosenSeat}
-              onChoose={setChosenSeat}
-              alreadyBooked={mineByTrip.has(selected.id)}
-              onConfirm={confirmBooking}
-              busy={booking}
-            />
+            <>
+              <div className="mb-3 flex items-start justify-between">
+                <div>
+                  <div className="font-medium">
+                    {selected.origin} → {selected.destination}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {selected.trains?.code} · {selected.trains?.name} ·{" "}
+                    {format(new Date(selected.departure_at), "EEE d MMM, HH:mm")} →{" "}
+                    {format(new Date(selected.arrival_at), "HH:mm")}
+                  </div>
+                </div>
+                <div className="text-right text-sm">
+                  <div className="font-semibold">{Number(selected.price_sar).toFixed(2)} SAR</div>
+                  <div className="text-xs text-muted-foreground">
+                    {selected.total_seats - (takenByTrip[selected.id]?.size ?? 0)} left
+                  </div>
+                </div>
+              </div>
+              <SeatMap
+                totalSeats={selected.total_seats}
+                taken={takenByTrip[selected.id] ?? new Set()}
+                ownSeat={ownSeatByTrip[selected.id]}
+                chosen={chosenSeat}
+                onChoose={setChosenSeat}
+                alreadyBooked={mineByTrip.has(selected.id)}
+                onConfirm={confirmBooking}
+                busy={booking}
+              />
+            </>
           )}
         </Card>
       </div>
     </AppShell>
-  );
-}
-
-/**
- * Visual seat map — pure presentation. All state lives in the parent.
- * Seats are coloured by status:
- *   - taken     → muted, struck through
- *   - your seat → primary border (you can't book again)
- *   - chosen    → solid primary
- *   - free      → outlined, hover hint
- */
-function SeatMap({
-  trip,
-  taken,
-  ownSeat,
-  chosen,
-  onChoose,
-  alreadyBooked,
-  onConfirm,
-  busy,
-}: {
-  trip: Trip;
-  taken: Set<number>;
-  ownSeat?: number;
-  chosen: number | null;
-  onChoose: (n: number) => void;
-  alreadyBooked: boolean;
-  onConfirm: () => void;
-  busy: boolean;
-}) {
-  return (
-    <div>
-      <div className="mb-3 flex items-start justify-between">
-        <div>
-          <div className="font-medium">
-            {trip.origin} → {trip.destination}
-          </div>
-          <div className="text-xs text-muted-foreground">
-            {trip.trains?.code} · {trip.trains?.name} ·{" "}
-            {format(new Date(trip.departure_at), "EEE d MMM, HH:mm")} →{" "}
-            {format(new Date(trip.arrival_at), "HH:mm")}
-          </div>
-        </div>
-        <div className="text-right text-sm">
-          <div className="font-semibold">{Number(trip.price_sar).toFixed(2)} SAR</div>
-          <div className="text-xs text-muted-foreground">{trip.total_seats - taken.size} left</div>
-        </div>
-      </div>
-
-      {/* Legend */}
-      <div className="mb-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
-        <Legend className="border border-border bg-background" label="Available" />
-        <Legend className="bg-primary text-primary-foreground" label="Selected" />
-        <Legend className="border border-primary bg-primary/10" label="Your seat" />
-        <Legend className="bg-muted text-muted-foreground line-through" label="Taken" />
-      </div>
-
-      {/* Seat grid */}
-      <div className="grid grid-cols-8 gap-2 sm:grid-cols-10">
-        {Array.from({ length: trip.total_seats }, (_, i) => i + 1).map((n) => {
-          const isOwn = ownSeat === n;
-          const isTaken = taken.has(n) && !isOwn;
-          const isChosen = chosen === n;
-          return (
-            <button
-              key={n}
-              disabled={isTaken || alreadyBooked}
-              onClick={() => onChoose(n)}
-              title={isTaken ? "Taken" : isOwn ? "Your seat" : `Seat ${n}`}
-              className={`h-9 rounded text-xs transition ${
-                isTaken
-                  ? "cursor-not-allowed bg-muted text-muted-foreground line-through"
-                  : isOwn
-                  ? "border border-primary bg-primary/10 text-primary"
-                  : isChosen
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "border border-border bg-background hover:border-primary hover:bg-accent/40"
-              }`}
-            >
-              {n}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
-        <div className="text-sm">
-          {alreadyBooked ? (
-            <span className="text-muted-foreground">
-              You already booked this trip (seat #{ownSeat}).
-            </span>
-          ) : (
-            <span>
-              Selected seat: <strong>{chosen ?? "—"}</strong>
-            </span>
-          )}
-        </div>
-        <Button onClick={onConfirm} disabled={!chosen || busy || alreadyBooked}>
-          {busy ? "Booking…" : "Confirm booking"}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function Legend({ className, label }: { className: string; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className={`inline-block h-3 w-3 rounded ${className}`} /> {label}
-    </span>
   );
 }
