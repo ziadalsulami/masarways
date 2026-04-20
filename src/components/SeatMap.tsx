@@ -46,12 +46,14 @@ export default function SeatMap({
 
   return (
     <div>
-      {/* Legend — explicit colours per spec: white = available, green = selected, grey = taken */}
+      {/* Legend — explicit colours per spec: white/light = available, green = selected, grey = taken.
+          Colours are forced (not theme-tokenised) so the three states are always
+          visually distinct in both light and dark mode. */}
       <div className="mb-4 flex flex-wrap gap-3 text-xs text-muted-foreground">
-        <Legend className="border border-border bg-white" label="Available" />
-        <Legend className="bg-green-600 text-white" label="Selected" />
-        <Legend className="border-2 border-green-600 bg-green-600/10" label="Your seat" />
-        <Legend className="bg-gray-400 text-white line-through" label="Taken" />
+        <Legend className="border border-gray-300 bg-white" label="Available" />
+        <Legend className="bg-green-600" label="Selected" />
+        <Legend className="border-2 border-green-600 bg-green-600/20" label="Your seat" />
+        <Legend className="bg-gray-400" label="Taken" />
       </div>
 
       {/* The carriage */}
