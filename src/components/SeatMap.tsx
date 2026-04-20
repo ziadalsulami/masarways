@@ -191,14 +191,14 @@ function Seat({
       disabled={isTaken || alreadyBooked}
       onClick={() => onChoose(n)}
       title={isTaken ? "Taken" : isOwn ? "Your seat" : `Seat ${n}`}
-      className={`h-9 rounded-md text-xs font-medium transition ${
+      className={`h-9 rounded-md text-xs font-semibold transition ${
         isTaken
           ? "cursor-not-allowed bg-gray-400 text-white line-through"
           : isOwn
-          ? "border-2 border-green-600 bg-green-600/10 text-green-700 dark:text-green-400"
+          ? "border-2 border-green-600 bg-green-600/20 text-green-700 dark:text-green-300"
           : isChosen
-          ? "scale-105 bg-green-600 text-white shadow"
-          : "border border-border bg-white text-gray-800 hover:border-green-600 hover:bg-green-50"
+          ? "scale-105 bg-green-600 text-white shadow ring-2 ring-green-400"
+          : "border border-gray-300 bg-white text-gray-800 hover:border-green-600 hover:bg-green-50"
       }`}
     >
       {n}
