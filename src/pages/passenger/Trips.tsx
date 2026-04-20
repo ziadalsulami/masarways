@@ -23,12 +23,18 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import AppShell from "@/components/AppShell";
-import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { downloadReceipt } from "@/lib/pdf";
 import { TrainFront } from "lucide-react";
 import SeatMap from "@/components/SeatMap";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface Trip {
   id: string;
