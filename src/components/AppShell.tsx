@@ -100,11 +100,11 @@ export default function AppShell({ children, nav = [] }: Props) {
               <DropdownMenuItem onClick={() => navigate("/account")}>
                 <User className="mr-2 h-4 w-4" /> My account
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => navigate(role === "admin" ? "/admin" : "/app")}
-              >
-                <Settings className="mr-2 h-4 w-4" /> Dashboard
-              </DropdownMenuItem>
+              {role === "admin" && (
+                <DropdownMenuItem onClick={() => navigate("/admin")}>
+                  <Settings className="mr-2 h-4 w-4" /> Dashboard
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={toggle}>
                 {theme === "dark" ? (
                   <>
