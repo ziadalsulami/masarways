@@ -60,6 +60,12 @@ export default function PassengerTrips() {
   const [chosenSeat, setChosenSeat] = useState<number | null>(null);
   const [booking, setBooking] = useState(false);
 
+  // ── Search filters ────────────────────────────────────────────────
+  // The passenger picks an optional destination + earliest date. When set,
+  // we filter the trips list client-side so the UX stays instant.
+  const [filterDest, setFilterDest] = useState<string>("all");
+  const [filterDate, setFilterDate] = useState<string>(""); // yyyy-mm-dd
+
   /** Fetch trips + active bookings. Called on mount + on every Realtime event. */
   const loadAll = async () => {
     const nowIso = new Date().toISOString();
@@ -115,7 +121,26 @@ export default function PassengerTrips() {
     return { takenByTrip: taken, mineByTrip: mine, ownSeatByTrip: ownSeat };
   }, [bookings, profile?.id]);
 
-  const selected = trips.find((t) => t.id === selectedId) ?? null;
+  // Apply search filters (destination + earliest date) to the trips list.
+  const visibleTrips = useMemo(() => {
+    return trips.filter((t) => {
+      if (filterDest !== "all" && t.destination !== filterDest) return false;
+      if (filterDate) {
+        // Compare on the user's local date (yyyy-mm-dd) for a friendly match.
+        const tripDay = new Date(t.departure_at).toISOString().slice(0, 10);
+        if (tripDay < filterDate) return false;
+      }
+      return true;
+    });
+  }, [trips, filterDest, filterDate]);
+
+  // Distinct destination options for the dropdown.
+  const destinations = useMemo(
+    () => Array.from(new Set(trips.map((t) => t.destination))).sort(),
+    [trips],
+  );
+
+  const selected = visibleTrips.find((t) => t.id === selectedId) ?? trips.find((t) => t.id === selectedId) ?? null;
 
   // Reset the chosen seat whenever the selected trip changes.
   useEffect(() => setChosenSeat(null), [selectedId]);
