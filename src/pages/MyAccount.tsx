@@ -10,6 +10,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import AppShell from "@/components/AppShell";
+import Greeting from "@/components/Greeting";
+import PasswordInput from "@/components/PasswordInput";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -72,7 +74,6 @@ export default function MyAccount() {
       : [
           { to: "/app", label: "Trips" },
           { to: "/app/bookings", label: "My bookings" },
-          { to: "/account", label: "My account" },
         ];
 
   /** Save name / phone / email back to the database (and to Supabase Auth for email). */
@@ -117,16 +118,24 @@ export default function MyAccount() {
     if (newPwd.length < 6) return toast.error("Password must be at least 6 characters.");
     if (newPwd !== confirmPwd) return toast.error("Passwords do not match.");
     setSavingPwd(true);
-    const { error } = await supabase.auth.updateUser({ password: newPwd });
+    // Make sure we have a fresh session (some sessions can be stale after long idle).
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session) {
+      setSavingPwd(false);
+      return toast.error("Your session expired. Please sign in again.");
+    }
+    const { data, error } = await supabase.auth.updateUser({ password: newPwd });
     setSavingPwd(false);
     if (error) return toast.error(error.message);
+    if (!data.user) return toast.error("Could not update password — please try again.");
     setNewPwd("");
     setConfirmPwd("");
-    toast.success("Password updated.");
+    toast.success("Password updated successfully.");
   };
 
   return (
     <AppShell nav={nav}>
+      <Greeting subtitle="Manage your MASAR profile and security settings." />
       <div className="mb-6">
         <h1 className="text-2xl font-semibold">My account</h1>
         <p className="text-sm text-muted-foreground">
@@ -205,18 +214,16 @@ export default function MyAccount() {
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <Label htmlFor="pwd">New password</Label>
-              <Input
+              <PasswordInput
                 id="pwd"
-                type="password"
                 value={newPwd}
                 onChange={(e) => setNewPwd(e.target.value)}
               />
             </div>
             <div>
               <Label htmlFor="pwd2">Confirm new password</Label>
-              <Input
+              <PasswordInput
                 id="pwd2"
-                type="password"
                 value={confirmPwd}
                 onChange={(e) => setConfirmPwd(e.target.value)}
               />

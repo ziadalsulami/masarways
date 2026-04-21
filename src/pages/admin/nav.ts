@@ -9,5 +9,4 @@ export const ADMIN_NAV = [
   { to: "/admin/passengers", label: "Passengers" },
   { to: "/admin/bookings",   label: "Bookings" },
   { to: "/admin/reports",    label: "Reports" },
-  { to: "/account",          label: "My account" },
 ];

@@ -1,14 +1,13 @@
 /**
- * MASAR landing page = combined Login / Sign-up screen.
+ * MASAR landing page = combined Login / Sign-up / Forgot-password screen.
  *
- * Demo shortcut: typing "@admin" or "@passenger" as the email maps to
- * the seeded local accounts (admin@masar.local / passenger@masar.local)
- * with password "1234" — handy for quickly demoing both modules.
+ * - Centered logo + title above the card.
+ * - Animated green blurred orbs in the background for atmosphere.
+ * - "Forgot password?" link sends a reset email via Supabase Auth.
+ * - Password fields use the shared <PasswordInput> with an eye toggle.
  *
- * Sign-up always creates a passenger account. The phone number is split
- * in two: a country-code dropdown (default +966 for Saudi Arabia) and a
- * 10-digit local part. The two are joined before being stored so the
- * profile keeps a single canonical phone number like "+966500000000".
+ * Demo handles "@admin" / "@passenger" still work but the helper note has
+ * been removed from the UI.
  */
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -29,23 +28,22 @@ import {
 import { toast } from "sonner";
 import { TrainFront } from "lucide-react";
 import { COUNTRIES, DEFAULT_COUNTRY } from "@/lib/countries";
+import PasswordInput from "@/components/PasswordInput";
 
 // Validate inputs strictly so bad data never reaches the database.
 const signUpSchema = z.object({
   full_name: z.string().trim().min(2, "Name is too short").max(100),
   email: z.string().trim().email("Invalid email").max(255),
-  // local phone part: digits only, exactly 10
-  phone_local: z
-    .string()
-    .trim()
-    .regex(/^\d{10}$/, "Phone must be exactly 10 digits"),
+  phone_local: z.string().trim().regex(/^\d{10}$/, "Phone must be exactly 10 digits"),
   password: z.string().min(4, "Password must be at least 4 characters").max(72),
 });
+
+type Mode = "signin" | "signup" | "forgot";
 
 export default function Auth() {
   const navigate = useNavigate();
   const { session, role, loading } = useAuth();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<Mode>("signin");
   const [busy, setBusy] = useState(false);
 
   // Form state
@@ -55,14 +53,13 @@ export default function Auth() {
   const [countryCode, setCountryCode] = useState(DEFAULT_COUNTRY.code);
   const [phoneLocal, setPhoneLocal] = useState("");
 
-  // Once a session + role are known, route the user to the right module.
   useEffect(() => {
     if (loading || !session) return;
     if (role === "admin") navigate("/admin", { replace: true });
     else if (role === "passenger") navigate("/app", { replace: true });
   }, [loading, session, role, navigate]);
 
-  /** Convert demo handles "@admin" / "@passenger" into real seeded emails. */
+  /** "@admin" / "@passenger" demo handles → real seeded emails. */
   const resolveEmail = (raw: string) => {
     const v = raw.trim().toLowerCase();
     if (v === "@admin") return "admin@masar.local";
@@ -89,25 +86,19 @@ export default function Auth() {
       phone_local: phoneLocal,
       password,
     });
-    if (!parsed.success) {
-      toast.error(parsed.error.issues[0].message);
-      return;
-    }
+    if (!parsed.success) return toast.error(parsed.error.issues[0].message);
 
-    // Canonical phone = country code + local digits, e.g. "+966500000000".
     const fullPhone = `${countryCode}${parsed.data.phone_local}`;
-
     setBusy(true);
     const { error } = await supabase.auth.signUp({
       email: parsed.data.email,
       password: parsed.data.password,
       options: {
         emailRedirectTo: `${window.location.origin}/`,
-        // Read by handle_new_user() trigger to populate public.profiles.
         data: {
           full_name: parsed.data.full_name,
           phone: fullPhone,
-          role: "passenger", // public sign-up is always a passenger
+          role: "passenger",
         },
       },
     });
@@ -116,133 +107,194 @@ export default function Auth() {
     else toast.success("Account created — signing you in…");
   };
 
+  const handleForgot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim()) return toast.error("Enter your email first.");
+    setBusy(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(resolveEmail(email), {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setBusy(false);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Reset link sent — check your email.");
+      setMode("signin");
+    }
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-md p-8">
-        <div className="mb-6 flex items-center gap-2 text-primary">
-          <TrainFront className="h-6 w-6" />
-          <h1 className="text-xl font-semibold">MASAR</h1>
-        </div>
-        <p className="mb-6 text-sm text-muted-foreground">
-          Train Schedule &amp; Reservation Management.
-          <br />
-          Demo: sign in with <code>@admin</code> or <code>@passenger</code> and password{" "}
-          <code>1234</code>.
-        </p>
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4">
+      {/* Animated green blurred orbs in the background */}
+      <div className="pointer-events-none absolute inset-0 -z-0 overflow-hidden">
+        <div className="absolute -top-32 -left-32 h-96 w-96 rounded-full bg-primary/30 blur-3xl animate-blob" />
+        <div className="absolute top-1/3 -right-32 h-96 w-96 rounded-full bg-primary/25 blur-3xl animate-blob animation-delay-2000" />
+        <div className="absolute -bottom-32 left-1/4 h-96 w-96 rounded-full bg-primary/20 blur-3xl animate-blob animation-delay-4000" />
+      </div>
 
-        {/* Tab switcher */}
-        <div className="mb-6 grid grid-cols-2 gap-1 rounded-md bg-muted p-1 text-sm">
-          <button
-            type="button"
-            onClick={() => setMode("signin")}
-            className={`rounded py-1.5 transition ${
-              mode === "signin" ? "bg-card font-medium shadow-sm" : "text-muted-foreground"
-            }`}
-          >
-            Sign in
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("signup")}
-            className={`rounded py-1.5 transition ${
-              mode === "signup" ? "bg-card font-medium shadow-sm" : "text-muted-foreground"
-            }`}
-          >
-            Sign up
-          </button>
+      <div className="relative z-10 w-full max-w-md">
+        {/* Centered brand */}
+        <div className="mb-6 flex flex-col items-center gap-2 text-primary">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 ring-1 ring-primary/30">
+            <TrainFront className="h-7 w-7" />
+          </div>
+          <h1 className="text-2xl font-semibold">MASAR</h1>
+          <p className="text-center text-sm text-muted-foreground">
+            Train Schedule &amp; Reservation Management
+          </p>
         </div>
 
-        {mode === "signin" ? (
-          <form onSubmit={handleSignIn} className="space-y-4">
-            <div>
-              <Label htmlFor="email">Email or @handle</Label>
-              <Input id="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        <Card className="w-full p-8 backdrop-blur-sm bg-card/90">
+          {mode !== "forgot" && (
+            <div className="mb-6 grid grid-cols-2 gap-1 rounded-md bg-muted p-1 text-sm">
+              <button
+                type="button"
+                onClick={() => setMode("signin")}
+                className={`rounded py-1.5 transition ${
+                  mode === "signin" ? "bg-card font-medium shadow-sm" : "text-muted-foreground"
+                }`}
+              >
+                Sign in
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("signup")}
+                className={`rounded py-1.5 transition ${
+                  mode === "signup" ? "bg-card font-medium shadow-sm" : "text-muted-foreground"
+                }`}
+              >
+                Sign up
+              </button>
             </div>
-            <div>
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={busy}>
-              {busy ? "Signing in…" : "Sign in"}
-            </Button>
-          </form>
-        ) : (
-          <form onSubmit={handleSignUp} className="space-y-4">
-            <div>
-              <Label htmlFor="full_name">Full name</Label>
-              <Input
-                id="full_name"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
+          )}
 
-            {/* Phone — country code + 10-digit local */}
-            <div>
-              <Label htmlFor="phone">Phone</Label>
-              <div className="flex gap-2">
-                <Select value={countryCode} onValueChange={setCountryCode}>
-                  <SelectTrigger className="w-[140px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {COUNTRIES.map((c) => (
-                      <SelectItem key={c.iso} value={c.code}>
-                        <span className="mr-1">{c.flag}</span>
-                        {c.code}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  id="phone"
-                  inputMode="numeric"
-                  maxLength={10}
-                  placeholder="5xxxxxxxx (10 digits)"
-                  value={phoneLocal}
-                  // Strip anything non-numeric so users can't paste bad data.
-                  onChange={(e) => setPhoneLocal(e.target.value.replace(/\D/g, "").slice(0, 10))}
+          {mode === "signin" && (
+            <form onSubmit={handleSignIn} className="space-y-4">
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              </div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Password</Label>
+                  <button
+                    type="button"
+                    onClick={() => setMode("forgot")}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+                <PasswordInput
+                  id="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   required
                 />
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Default is Saudi Arabia (+966). Enter your 10-digit local number.
-              </p>
-            </div>
+              <Button type="submit" className="w-full" disabled={busy}>
+                {busy ? "Signing in…" : "Sign in"}
+              </Button>
+            </form>
+          )}
 
-            <div>
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={busy}>
-              {busy ? "Creating account…" : "Create passenger account"}
-            </Button>
-          </form>
-        )}
-      </Card>
+          {mode === "signup" && (
+            <form onSubmit={handleSignUp} className="space-y-4">
+              <div>
+                <Label htmlFor="full_name">Full name</Label>
+                <Input
+                  id="full_name"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="phone">Phone</Label>
+                <div className="flex gap-2">
+                  <Select value={countryCode} onValueChange={setCountryCode}>
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COUNTRIES.map((c) => (
+                        <SelectItem key={c.iso} value={c.code}>
+                          <span className="mr-1">{c.flag}</span>
+                          {c.code}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    id="phone"
+                    inputMode="numeric"
+                    maxLength={10}
+                    placeholder="5xxxxxxxx (10 digits)"
+                    value={phoneLocal}
+                    onChange={(e) => setPhoneLocal(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    required
+                  />
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Default is Saudi Arabia (+966).
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="password">Password</Label>
+                <PasswordInput
+                  id="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={busy}>
+                {busy ? "Creating account…" : "Create passenger account"}
+              </Button>
+            </form>
+          )}
+
+          {mode === "forgot" && (
+            <form onSubmit={handleForgot} className="space-y-4">
+              <div>
+                <h2 className="text-lg font-medium">Reset your password</h2>
+                <p className="text-sm text-muted-foreground">
+                  Enter your email and we'll send you a reset link.
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={busy}>
+                {busy ? "Sending…" : "Send reset link"}
+              </Button>
+              <button
+                type="button"
+                onClick={() => setMode("signin")}
+                className="block w-full text-center text-xs text-muted-foreground hover:text-foreground"
+              >
+                ← Back to sign in
+              </button>
+            </form>
+          )}
+        </Card>
+      </div>
     </div>
   );
 }

@@ -80,7 +80,6 @@ export default function MyBookings() {
       nav={[
         { to: "/app", label: "Trips" },
         { to: "/app/bookings", label: "My bookings" },
-        { to: "/account", label: "My account" },
       ]}
     >
       <h1 className="mb-6 text-2xl font-semibold">My bookings</h1>

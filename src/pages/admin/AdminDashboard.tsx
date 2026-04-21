@@ -13,6 +13,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AppShell from "@/components/AppShell";
+import Greeting from "@/components/Greeting";
 import { Card } from "@/components/ui/card";
 import { ADMIN_NAV } from "./nav";
 import { format, subDays, startOfDay } from "date-fns";
@@ -24,8 +25,24 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+  LineChart,
+  Line,
 } from "recharts";
 import { TrainFront, Ticket, Users, Wallet } from "lucide-react";
+
+// Palette derived from the design system primary token plus complementary hues.
+const PIE_COLORS = [
+  "hsl(var(--primary))",
+  "hsl(158 50% 45%)",
+  "hsl(40 80% 55%)",
+  "hsl(0 70% 60%)",
+  "hsl(220 60% 55%)",
+  "hsl(280 50% 60%)",
+];
 
 interface TripRow {
   id: string;
@@ -137,6 +154,43 @@ export default function AdminDashboard() {
       .slice(0, 6);
   }, [activeBookings, trips]);
 
+  // Pie: trip status distribution
+  const statusPie = useMemo(() => {
+    const map = new Map<string, number>();
+    trips.forEach((t) => {
+      const s = (t as TripRow & { status?: string }).status ?? "scheduled";
+      map.set(s, (map.get(s) ?? 0) + 1);
+    });
+    return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
+  }, [trips]);
+
+  // Pie: occupancy split (booked vs available across all upcoming trips)
+  const occupancyPie = useMemo(() => {
+    const upcoming = trips.filter((t) => new Date(t.departure_at).getTime() > Date.now());
+    const total = upcoming.reduce((s, t) => s + t.total_seats, 0);
+    const booked = upcoming.reduce(
+      (s, t) => s + activeBookings.filter((b) => b.trip_id === t.id).length,
+      0,
+    );
+    return [
+      { name: "Booked", value: booked },
+      { name: "Available", value: Math.max(0, total - booked) },
+    ];
+  }, [trips, activeBookings]);
+
+  // Line: cumulative revenue over the last 14 days
+  const revenueTrend = useMemo(() => {
+    const days = Array.from({ length: 14 }, (_, i) => startOfDay(subDays(new Date(), 13 - i)));
+    let cumulative = 0;
+    return days.map((d) => {
+      const dayRev = activeBookings
+        .filter((b) => startOfDay(new Date(b.created_at)).getTime() === d.getTime())
+        .reduce((s, b) => s + (priceById.get(b.trip_id) ?? 0), 0);
+      cumulative += dayRev;
+      return { day: format(d, "MMM d"), revenue: cumulative };
+    });
+  }, [activeBookings, priceById]);
+
   // Upcoming-trips table with occupancy
   const upcomingTrips = useMemo(() => {
     const now = Date.now();
@@ -151,12 +205,10 @@ export default function AdminDashboard() {
 
   return (
     <AppShell nav={ADMIN_NAV}>
+      <Greeting subtitle="Live operational overview — updates as passengers book and cancel." />
       <div className="mb-6 flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Administrator Dashboard</h1>
-          <p className="text-sm text-muted-foreground">
-            Live operational overview — updates as passengers book and cancel.
-          </p>
         </div>
         <span className="hidden items-center gap-1 rounded-full border border-border bg-card px-2 py-1 text-xs text-muted-foreground sm:inline-flex">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" /> live
@@ -219,6 +271,97 @@ export default function AdminDashboard() {
                 />
                 <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
               </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      </div>
+
+      {/* Pie + line trend row */}
+      <div className="mb-6 grid gap-4 lg:grid-cols-3">
+        <Card className="p-4">
+          <div className="mb-2 text-sm font-medium">Trip status mix</div>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={statusPie}
+                  dataKey="value"
+                  nameKey="name"
+                  outerRadius={80}
+                  label={(e) => `${e.name} (${e.value})`}
+                >
+                  {statusPie.map((_, i) => (
+                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{
+                    background: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: 6,
+                    fontSize: 12,
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <div className="mb-2 text-sm font-medium">Seat occupancy (upcoming)</div>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={occupancyPie}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius={45}
+                  outerRadius={80}
+                  paddingAngle={2}
+                >
+                  <Cell fill="hsl(var(--primary))" />
+                  <Cell fill="hsl(var(--muted))" />
+                </Pie>
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Tooltip
+                  contentStyle={{
+                    background: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: 6,
+                    fontSize: 12,
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <div className="mb-2 text-sm font-medium">Cumulative revenue (14d)</div>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={revenueTrend}>
+                <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
+                <XAxis dataKey="day" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                <Tooltip
+                  contentStyle={{
+                    background: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: 6,
+                    fontSize: 12,
+                  }}
+                  formatter={(v: number) => [`${v.toFixed(2)} SAR`, "Revenue"]}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="hsl(var(--primary))"
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </LineChart>
             </ResponsiveContainer>
           </div>
         </Card>

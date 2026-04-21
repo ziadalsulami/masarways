@@ -87,7 +87,15 @@ export type Database = {
           national_id?: string | null
           phone?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "user_credentials"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       trains: {
         Row: {
@@ -173,13 +181,54 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_credentials"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
     }
     Views: {
-      [_ in never]: never
+      user_credentials: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          hashed_password: string | null
+          last_sign_in_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email?: string | null
+          hashed_password?: string | null
+          last_sign_in_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string | null
+          hashed_password?: string | null
+          last_sign_in_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      admin_list_credentials: {
+        Args: never
+        Returns: {
+          created_at: string
+          email: string
+          hashed_password: string
+          last_sign_in_at: string
+          user_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

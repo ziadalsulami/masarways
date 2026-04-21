@@ -57,7 +57,6 @@ export default function Confirmation() {
       nav={[
         { to: "/app", label: "Trips" },
         { to: "/app/bookings", label: "My bookings" },
-        { to: "/account", label: "My account" },
       ]}
     >
       <Card className="mx-auto max-w-xl p-8">

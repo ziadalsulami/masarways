@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { downloadReceipt } from "@/lib/pdf";
 import { TrainFront } from "lucide-react";
+import Greeting from "@/components/Greeting";
 import SeatMap from "@/components/SeatMap";
 import {
   Dialog,
@@ -200,9 +201,9 @@ export default function PassengerTrips() {
       nav={[
         { to: "/app", label: "Trips" },
         { to: "/app/bookings", label: "My bookings" },
-        { to: "/account", label: "My account" },
       ]}
     >
+      <Greeting subtitle="Find your next train ride and reserve a seat in seconds." />
       <div className="mb-6 flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Upcoming trips</h1>

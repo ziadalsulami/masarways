@@ -7,6 +7,7 @@ import { AuthProvider } from "@/lib/auth";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index.tsx";
 import Auth from "./pages/Auth.tsx";
+import ResetPassword from "./pages/ResetPassword.tsx";
 import AdminDashboard from "./pages/admin/AdminDashboard.tsx";
 import AdminTrips from "./pages/admin/AdminTrips.tsx";
 import AdminTrains from "./pages/admin/AdminTrains.tsx";
@@ -41,6 +42,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
             {/* Administrator module */}
             <Route path="/admin"            element={adminRoute(<AdminDashboard />)} />
