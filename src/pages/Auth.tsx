@@ -31,12 +31,24 @@ import { COUNTRIES, DEFAULT_COUNTRY } from "@/lib/countries";
 import PasswordInput from "@/components/PasswordInput";
 
 // Validate inputs strictly so bad data never reaches the database.
+// Password rules: min 8 chars, at least one letter, one number, one special character.
+const PASSWORD_RULES_MSG =
+  "At least 8 characters, including a letter, a number, and a special character (e.g. !@#$%).";
+const passwordSchema = z
+  .string()
+  .min(8, "Password must be at least 8 characters")
+  .max(72)
+  .regex(/[A-Za-z]/, "Password must contain a letter")
+  .regex(/\d/, "Password must contain a number")
+  .regex(/[^A-Za-z0-9]/, "Password must contain a special character");
+
 const signUpSchema = z.object({
   full_name: z.string().trim().min(2, "Name is too short").max(100),
   email: z.string().trim().email("Invalid email").max(255),
   phone_local: z.string().trim().regex(/^\d{10}$/, "Phone must be exactly 10 digits"),
-  password: z.string().min(4, "Password must be at least 4 characters").max(72),
-});
+  password: passwordSchema,
+  confirm: z.string(),
+}).refine((d) => d.password === d.confirm, { message: "Passwords do not match", path: ["confirm"] });
 
 type Mode = "signin" | "signup" | "forgot";
 
@@ -49,6 +61,7 @@ export default function Auth() {
   // Form state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPwd, setConfirmPwd] = useState("");
   const [fullName, setFullName] = useState("");
   const [countryCode, setCountryCode] = useState(DEFAULT_COUNTRY.code);
   const [phoneLocal, setPhoneLocal] = useState("");
@@ -85,6 +98,7 @@ export default function Auth() {
       email,
       phone_local: phoneLocal,
       password,
+      confirm: confirmPwd,
     });
     if (!parsed.success) return toast.error(parsed.error.issues[0].message);
 
@@ -256,6 +270,19 @@ export default function Auth() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                 />
+                <p className="mt-1 text-xs text-muted-foreground">{PASSWORD_RULES_MSG}</p>
+              </div>
+              <div>
+                <Label htmlFor="confirm_password">Confirm password</Label>
+                <PasswordInput
+                  id="confirm_password"
+                  value={confirmPwd}
+                  onChange={(e) => setConfirmPwd(e.target.value)}
+                  required
+                />
+                {confirmPwd && password !== confirmPwd && (
+                  <p className="mt-1 text-xs text-destructive">Passwords do not match.</p>
+                )}
               </div>
               <Button type="submit" className="w-full" disabled={busy}>
                 {busy ? "Creating account…" : "Create passenger account"}
