@@ -154,6 +154,43 @@ export default function AdminDashboard() {
       .slice(0, 6);
   }, [activeBookings, trips]);
 
+  // Pie: trip status distribution
+  const statusPie = useMemo(() => {
+    const map = new Map<string, number>();
+    trips.forEach((t) => {
+      const s = (t as TripRow & { status?: string }).status ?? "scheduled";
+      map.set(s, (map.get(s) ?? 0) + 1);
+    });
+    return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
+  }, [trips]);
+
+  // Pie: occupancy split (booked vs available across all upcoming trips)
+  const occupancyPie = useMemo(() => {
+    const upcoming = trips.filter((t) => new Date(t.departure_at).getTime() > Date.now());
+    const total = upcoming.reduce((s, t) => s + t.total_seats, 0);
+    const booked = upcoming.reduce(
+      (s, t) => s + activeBookings.filter((b) => b.trip_id === t.id).length,
+      0,
+    );
+    return [
+      { name: "Booked", value: booked },
+      { name: "Available", value: Math.max(0, total - booked) },
+    ];
+  }, [trips, activeBookings]);
+
+  // Line: cumulative revenue over the last 14 days
+  const revenueTrend = useMemo(() => {
+    const days = Array.from({ length: 14 }, (_, i) => startOfDay(subDays(new Date(), 13 - i)));
+    let cumulative = 0;
+    return days.map((d) => {
+      const dayRev = activeBookings
+        .filter((b) => startOfDay(new Date(b.created_at)).getTime() === d.getTime())
+        .reduce((s, b) => s + (priceById.get(b.trip_id) ?? 0), 0);
+      cumulative += dayRev;
+      return { day: format(d, "MMM d"), revenue: cumulative };
+    });
+  }, [activeBookings, priceById]);
+
   // Upcoming-trips table with occupancy
   const upcomingTrips = useMemo(() => {
     const now = Date.now();
