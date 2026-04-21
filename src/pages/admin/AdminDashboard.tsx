@@ -13,6 +13,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AppShell from "@/components/AppShell";
+import Greeting from "@/components/Greeting";
 import { Card } from "@/components/ui/card";
 import { ADMIN_NAV } from "./nav";
 import { format, subDays, startOfDay } from "date-fns";
@@ -24,8 +25,24 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+  LineChart,
+  Line,
 } from "recharts";
 import { TrainFront, Ticket, Users, Wallet } from "lucide-react";
+
+// Palette derived from the design system primary token plus complementary hues.
+const PIE_COLORS = [
+  "hsl(var(--primary))",
+  "hsl(158 50% 45%)",
+  "hsl(40 80% 55%)",
+  "hsl(0 70% 60%)",
+  "hsl(220 60% 55%)",
+  "hsl(280 50% 60%)",
+];
 
 interface TripRow {
   id: string;
