@@ -228,27 +228,29 @@ export default function PassengerTrips() {
       </div>
 
       {/* ── Search filters ───────────────────────────────────────── */}
-      {/* Simple filter bar: pick a destination + earliest departure date. */}
+      {/* Searchable destination input (with autocomplete suggestions) and an
+          exact date picker. Past dates are blocked at the input level. */}
       <div className="mb-5 grid gap-3 rounded-lg border border-border bg-card p-3 sm:grid-cols-[1fr_1fr_auto]">
         <div>
           <label className="mb-1 block text-xs text-muted-foreground">Where to?</label>
-          <select
+          <input
+            list="trip-destinations"
             value={filterDest}
             onChange={(e) => setFilterDest(e.target.value)}
+            placeholder="Search destination…"
             className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
-          >
-            <option value="all">Any destination</option>
+          />
+          <datalist id="trip-destinations">
             {destinations.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
+              <option key={d} value={d} />
             ))}
-          </select>
+          </datalist>
         </div>
         <div>
-          <label className="mb-1 block text-xs text-muted-foreground">From date</label>
+          <label className="mb-1 block text-xs text-muted-foreground">Date</label>
           <input
             type="date"
+            min={todayStr}
             value={filterDate}
             onChange={(e) => setFilterDate(e.target.value)}
             className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
@@ -257,7 +259,7 @@ export default function PassengerTrips() {
         <button
           type="button"
           onClick={() => {
-            setFilterDest("all");
+            setFilterDest("");
             setFilterDate("");
           }}
           className="h-9 self-end rounded-md border border-border bg-background px-3 text-sm hover:bg-accent"
