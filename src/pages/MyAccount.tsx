@@ -72,7 +72,6 @@ export default function MyAccount() {
       : [
           { to: "/app", label: "Trips" },
           { to: "/app/bookings", label: "My bookings" },
-          { to: "/account", label: "My account" },
         ];
 
   /** Save name / phone / email back to the database (and to Supabase Auth for email). */
