@@ -70,7 +70,7 @@ export default function PassengerTrips() {
   // ── Search filters ────────────────────────────────────────────────
   // The passenger picks an optional destination + earliest date. When set,
   // we filter the trips list client-side so the UX stays instant.
-  const [filterDest, setFilterDest] = useState<string>("all");
+  const [filterDest, setFilterDest] = useState<string>("");
   const [filterDate, setFilterDate] = useState<string>(""); // yyyy-mm-dd
 
   /** Fetch trips + active bookings. Called on mount + on every Realtime event. */
@@ -127,20 +127,31 @@ export default function PassengerTrips() {
     return { takenByTrip: taken, mineByTrip: mine, ownSeatByTrip: ownSeat };
   }, [bookings, profile?.id]);
 
-  // Apply search filters (destination + earliest date) to the trips list.
+  // Today (local) yyyy-mm-dd — used as the min for the date filter so users
+  // physically cannot select a past date.
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }, []);
+
+  // Apply search filters: hide fully-booked trips, match destination (substring,
+  // case-insensitive), and require an exact date match when one is picked.
   const visibleTrips = useMemo(() => {
+    const q = filterDest.trim().toLowerCase();
     return trips.filter((t) => {
-      if (filterDest !== "all" && t.destination !== filterDest) return false;
+      // Hide fully-booked trips entirely from the passenger view.
+      const taken = takenByTrip[t.id]?.size ?? 0;
+      if (taken >= t.total_seats) return false;
+      if (q && q !== "all" && !t.destination.toLowerCase().includes(q)) return false;
       if (filterDate) {
-        // Compare on the user's local date (yyyy-mm-dd) for a friendly match.
         const tripDay = new Date(t.departure_at).toISOString().slice(0, 10);
-        if (tripDay < filterDate) return false;
+        if (tripDay !== filterDate) return false;
       }
       return true;
     });
-  }, [trips, filterDest, filterDate]);
+  }, [trips, filterDest, filterDate, takenByTrip]);
 
-  // Distinct destination options for the dropdown.
+  // Distinct destination options for the datalist autocomplete.
   const destinations = useMemo(
     () => Array.from(new Set(trips.map((t) => t.destination))).sort(),
     [trips],
@@ -217,27 +228,29 @@ export default function PassengerTrips() {
       </div>
 
       {/* ── Search filters ───────────────────────────────────────── */}
-      {/* Simple filter bar: pick a destination + earliest departure date. */}
+      {/* Searchable destination input (with autocomplete suggestions) and an
+          exact date picker. Past dates are blocked at the input level. */}
       <div className="mb-5 grid gap-3 rounded-lg border border-border bg-card p-3 sm:grid-cols-[1fr_1fr_auto]">
         <div>
           <label className="mb-1 block text-xs text-muted-foreground">Where to?</label>
-          <select
+          <input
+            list="trip-destinations"
             value={filterDest}
             onChange={(e) => setFilterDest(e.target.value)}
+            placeholder="Search destination…"
             className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
-          >
-            <option value="all">Any destination</option>
+          />
+          <datalist id="trip-destinations">
             {destinations.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
+              <option key={d} value={d} />
             ))}
-          </select>
+          </datalist>
         </div>
         <div>
-          <label className="mb-1 block text-xs text-muted-foreground">From date</label>
+          <label className="mb-1 block text-xs text-muted-foreground">Date</label>
           <input
             type="date"
+            min={todayStr}
             value={filterDate}
             onChange={(e) => setFilterDate(e.target.value)}
             className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
@@ -246,7 +259,7 @@ export default function PassengerTrips() {
         <button
           type="button"
           onClick={() => {
-            setFilterDest("all");
+            setFilterDest("");
             setFilterDate("");
           }}
           className="h-9 self-end rounded-md border border-border bg-background px-3 text-sm hover:bg-accent"
@@ -297,15 +310,28 @@ export default function PassengerTrips() {
                   </span>
                 )}
               </div>
+              {/* Action button — clearly indicates whether the user can book or
+                  has already booked this trip. */}
+              <div className="mt-3">
+                {alreadyBooked ? (
+                  <span className="inline-flex w-full items-center justify-center rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary">
+                    ✓ Booked
+                  </span>
+                ) : (
+                  <span className="inline-flex w-full items-center justify-center rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition group-hover:bg-primary/90">
+                    Book a seat
+                  </span>
+                )}
+              </div>
             </button>
           );
         })}
         {visibleTrips.length === 0 && (
-          <p className="text-muted-foreground sm:col-span-2 lg:col-span-3">
+          <div className="rounded-lg border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground sm:col-span-2 lg:col-span-3">
             {trips.length === 0
               ? "No upcoming trips at the moment."
-              : "No trips match your search — try a different destination or date."}
-          </p>
+              : "No trips were found for your search — try a different destination or date."}
+          </div>
         )}
       </div>
 

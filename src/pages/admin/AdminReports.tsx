@@ -1,6 +1,9 @@
 /**
- * Admin — Reports & analytics.
- * Pickable date range (default last 30 days) and a one-click PDF export.
+ * Admin — Reports module.
+ *
+ * Pure reports listing — NOT a dashboard. The admin sees a list of report
+ * presets (Today, This week, This month, plus a custom range) and can
+ * download each as a PDF in one click. No KPIs, no charts on this page.
  */
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,12 +14,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ADMIN_NAV } from "./nav";
 import {
-  ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  BarChart, Bar,
-} from "recharts";
-import { format, subDays, startOfDay, eachDayOfInterval } from "date-fns";
+  format, subDays, startOfDay, eachDayOfInterval,
+  startOfWeek, endOfWeek, startOfMonth, endOfMonth,
+} from "date-fns";
 import { downloadReport } from "@/lib/pdf";
-import { Download } from "lucide-react";
+import { Download, CalendarDays, CalendarRange, Calendar } from "lucide-react";
 
 interface Booking {
   id: string;
@@ -31,11 +33,49 @@ interface Trip {
   price_sar: number;
 }
 
+/** A report preset: a label + a function returning the [from, to] date range. */
+interface ReportPreset {
+  key: string;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+  range: () => { from: Date; to: Date };
+}
+
+const PRESETS: ReportPreset[] = [
+  {
+    key: "daily",
+    label: "Daily report",
+    description: "All bookings and revenue for today.",
+    icon: <CalendarDays className="h-5 w-5" />,
+    range: () => ({ from: startOfDay(new Date()), to: new Date() }),
+  },
+  {
+    key: "weekly",
+    label: "Weekly report",
+    description: "Current calendar week (Monday → Sunday).",
+    icon: <CalendarRange className="h-5 w-5" />,
+    range: () => ({
+      from: startOfWeek(new Date(), { weekStartsOn: 1 }),
+      to: endOfWeek(new Date(), { weekStartsOn: 1 }),
+    }),
+  },
+  {
+    key: "monthly",
+    label: "Monthly report",
+    description: "Current calendar month from the 1st onwards.",
+    icon: <Calendar className="h-5 w-5" />,
+    range: () => ({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) }),
+  },
+];
+
 export default function AdminReports() {
-  const [from, setFrom] = useState(format(subDays(new Date(), 29), "yyyy-MM-dd"));
-  const [to, setTo]     = useState(format(new Date(), "yyyy-MM-dd"));
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
+
+  // Custom range — defaults to the last 30 days.
+  const [from, setFrom] = useState(format(subDays(new Date(), 29), "yyyy-MM-dd"));
+  const [to, setTo]     = useState(format(new Date(), "yyyy-MM-dd"));
 
   useEffect(() => {
     (async () => {
@@ -48,33 +88,35 @@ export default function AdminReports() {
     })();
   }, []);
 
-  const priceById = useMemo(() => new Map(trips.map((t) => [t.id, Number(t.price_sar)])), [trips]);
+  const priceById = useMemo(
+    () => new Map(trips.map((t) => [t.id, Number(t.price_sar)])),
+    [trips],
+  );
 
-  // Filter bookings to the picked range.
-  const inRange = useMemo(() => {
-    const start = startOfDay(new Date(from)).getTime();
-    const end   = startOfDay(new Date(to)).getTime() + 86_400_000 - 1;
-    return bookings.filter((b) => {
+  /** Build the full report payload for a given date range and trigger PDF download. */
+  const buildAndDownload = (rangeFrom: Date, rangeTo: Date) => {
+    const start = startOfDay(rangeFrom).getTime();
+    const end   = startOfDay(rangeTo).getTime() + 86_400_000 - 1;
+    const inRange = bookings.filter((b) => {
       const t = new Date(b.created_at).getTime();
       return t >= start && t <= end;
     });
-  }, [bookings, from, to]);
 
-  const summary = useMemo(() => {
     const active = inRange.filter((b) => b.status === "active");
     const revenue = active.reduce((s, b) => s + (priceById.get(b.trip_id) ?? 0), 0);
-    return {
+    const summary = {
       total: inRange.length,
       active: active.length,
       cancelled: inRange.length - active.length,
       revenue,
     };
-  }, [inRange, priceById]);
 
-  // Series for the line chart — booking count per day.
-  const dailySeries = useMemo(() => {
-    const days = eachDayOfInterval({ start: new Date(from), end: new Date(to) });
-    const counts = new Map(days.map((d) => [startOfDay(d).toISOString(), { active: 0, cancelled: 0, revenue: 0 }]));
+    // Daily breakdown
+    const days = eachDayOfInterval({ start: rangeFrom, end: rangeTo });
+    const counts = new Map(days.map((d) => [
+      startOfDay(d).toISOString(),
+      { active: 0, cancelled: 0, revenue: 0 },
+    ]));
     inRange.forEach((b) => {
       const k = startOfDay(new Date(b.created_at)).toISOString();
       const cell = counts.get(k);
@@ -84,14 +126,12 @@ export default function AdminReports() {
         cell.revenue += priceById.get(b.trip_id) ?? 0;
       } else cell.cancelled += 1;
     });
-    return days.map((d) => ({
+    const daily = days.map((d) => ({
       day: format(d, "MMM d"),
       ...counts.get(startOfDay(d).toISOString())!,
     }));
-  }, [inRange, from, to, priceById]);
 
-  // Top routes by revenue
-  const routeSeries = useMemo(() => {
+    // Top routes by revenue
     const m = new Map<string, number>();
     inRange.filter((b) => b.status === "active").forEach((b) => {
       const tr = trips.find((t) => t.id === b.trip_id);
@@ -99,91 +139,102 @@ export default function AdminReports() {
       const k = `${tr.origin} → ${tr.destination}`;
       m.set(k, (m.get(k) ?? 0) + Number(tr.price_sar));
     });
-    return Array.from(m.entries())
+    const routes = Array.from(m.entries())
       .map(([route, revenue]) => ({ route, revenue }))
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 8);
-  }, [inRange, trips]);
 
-  const exportPdf = () => {
     downloadReport({
-      from, to,
+      from: format(rangeFrom, "yyyy-MM-dd"),
+      to: format(rangeTo, "yyyy-MM-dd"),
       summary,
-      daily: dailySeries,
-      routes: routeSeries,
+      daily,
+      routes,
     });
   };
 
+  const today = format(new Date(), "yyyy-MM-dd");
+
   return (
     <AppShell nav={ADMIN_NAV}>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Reports</h1>
-          <p className="text-sm text-muted-foreground">Booking and revenue analytics for a date range.</p>
-        </div>
-        <div className="flex flex-wrap items-end gap-2">
-          <div>
-            <Label>From</Label>
-            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-          </div>
-          <div>
-            <Label>To</Label>
-            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-          </div>
-          <Button onClick={exportPdf}><Download className="mr-1 h-4 w-4" /> Export PDF</Button>
-        </div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold">Reports</h1>
+        <p className="text-sm text-muted-foreground">
+          Generate and download operational reports as PDF documents.
+        </p>
       </div>
 
-      {/* KPI summary */}
-      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Stat label="Bookings"     value={summary.total} />
-        <Stat label="Active"       value={summary.active} />
-        <Stat label="Cancelled"    value={summary.cancelled} />
-        <Stat label="Revenue (SAR)" value={summary.revenue.toFixed(2)} />
-      </div>
+      {/* Preset reports list */}
+      <div className="mb-6 grid gap-3">
+        {PRESETS.map((p) => {
+          const { from: f, to: t } = p.range();
+          return (
+            <Card key={p.key} className="flex items-center justify-between gap-4 p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
+                  {p.icon}
+                </div>
+                <div>
+                  <div className="font-medium">{p.label}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {p.description} ·{" "}
+                    <span className="text-foreground">
+                      {format(f, "MMM d, yyyy")}
+                      {format(f, "yyyy-MM-dd") !== format(t, "yyyy-MM-dd") &&
+                        ` → ${format(t, "MMM d, yyyy")}`}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <Button onClick={() => buildAndDownload(f, t)}>
+                <Download className="mr-1 h-4 w-4" /> Download PDF
+              </Button>
+            </Card>
+          );
+        })}
 
-      {/* Charts */}
-      <div className="mb-6 grid gap-4 lg:grid-cols-2">
+        {/* Custom range */}
         <Card className="p-4">
-          <div className="mb-2 text-sm font-medium">Bookings per day</div>
-          <div className="h-64">
-            <ResponsiveContainer>
-              <LineChart data={dailySeries}>
-                <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
-                <XAxis dataKey="day" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-                <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 6, fontSize: 12 }} />
-                <Line type="monotone" dataKey="active"    stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="cancelled" stroke="hsl(var(--destructive))" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
+          <div className="mb-3 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <CalendarRange className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="font-medium">Custom range report</div>
+              <div className="text-xs text-muted-foreground">
+                Pick any start and end date (no future dates allowed).
+              </div>
+            </div>
           </div>
-        </Card>
-
-        <Card className="p-4">
-          <div className="mb-2 text-sm font-medium">Revenue by route (top 8)</div>
-          <div className="h-64">
-            <ResponsiveContainer>
-              <BarChart data={routeSeries} layout="vertical" margin={{ left: 24 }}>
-                <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
-                <XAxis type="number" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-                <YAxis type="category" dataKey="route" width={120} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-                <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 6, fontSize: 12 }} formatter={(v: number) => [`${v.toFixed(2)} SAR`, "Revenue"]} />
-                <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <Label>From</Label>
+              <Input
+                type="date"
+                max={today}
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>To</Label>
+              <Input
+                type="date"
+                min={from}
+                max={today}
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+              />
+            </div>
+            <Button
+              onClick={() => buildAndDownload(new Date(from), new Date(to))}
+              disabled={!from || !to || from > to}
+            >
+              <Download className="mr-1 h-4 w-4" /> Download PDF
+            </Button>
           </div>
         </Card>
       </div>
     </AppShell>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <Card className="p-4">
-      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="mt-2 text-2xl font-semibold tabular-nums">{value}</div>
-    </Card>
   );
 }

@@ -214,6 +214,9 @@ function TripDialog({
   const toLocal = (iso?: string) =>
     iso ? format(new Date(iso), "yyyy-MM-dd'T'HH:mm") : "";
 
+  // Today (local) as min for date pickers — prevents picking past dates entirely.
+  const minDateTime = format(new Date(), "yyyy-MM-dd'T'HH:mm");
+
   const [trainId, setTrainId]   = useState(trip?.train_id ?? trains[0]?.id ?? "");
   const [origin, setOrigin]     = useState(trip?.origin ?? "");
   const [destination, setDest]  = useState(trip?.destination ?? "");
@@ -289,11 +292,11 @@ function TripDialog({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label>Departure</Label>
-            <Input type="datetime-local" value={departure} onChange={(e) => setDep(e.target.value)} required />
+            <Input type="datetime-local" min={trip ? undefined : minDateTime} value={departure} onChange={(e) => setDep(e.target.value)} required />
           </div>
           <div>
             <Label>Arrival</Label>
-            <Input type="datetime-local" value={arrival} onChange={(e) => setArr(e.target.value)} required />
+            <Input type="datetime-local" min={departure || minDateTime} value={arrival} onChange={(e) => setArr(e.target.value)} required />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
