@@ -310,15 +310,28 @@ export default function PassengerTrips() {
                   </span>
                 )}
               </div>
+              {/* Action button — clearly indicates whether the user can book or
+                  has already booked this trip. */}
+              <div className="mt-3">
+                {alreadyBooked ? (
+                  <span className="inline-flex w-full items-center justify-center rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary">
+                    ✓ Booked
+                  </span>
+                ) : (
+                  <span className="inline-flex w-full items-center justify-center rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition group-hover:bg-primary/90">
+                    Book a seat
+                  </span>
+                )}
+              </div>
             </button>
           );
         })}
         {visibleTrips.length === 0 && (
-          <p className="text-muted-foreground sm:col-span-2 lg:col-span-3">
+          <div className="rounded-lg border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground sm:col-span-2 lg:col-span-3">
             {trips.length === 0
               ? "No upcoming trips at the moment."
-              : "No trips match your search — try a different destination or date."}
-          </p>
+              : "No trips were found for your search — try a different destination or date."}
+          </div>
         )}
       </div>
 
