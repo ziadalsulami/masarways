@@ -205,12 +205,10 @@ export default function AdminDashboard() {
 
   return (
     <AppShell nav={ADMIN_NAV}>
+      <Greeting subtitle="Live operational overview — updates as passengers book and cancel." />
       <div className="mb-6 flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Administrator Dashboard</h1>
-          <p className="text-sm text-muted-foreground">
-            Live operational overview — updates as passengers book and cancel.
-          </p>
         </div>
         <span className="hidden items-center gap-1 rounded-full border border-border bg-card px-2 py-1 text-xs text-muted-foreground sm:inline-flex">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" /> live
