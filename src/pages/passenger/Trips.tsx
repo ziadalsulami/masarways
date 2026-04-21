@@ -70,7 +70,7 @@ export default function PassengerTrips() {
   // ── Search filters ────────────────────────────────────────────────
   // The passenger picks an optional destination + earliest date. When set,
   // we filter the trips list client-side so the UX stays instant.
-  const [filterDest, setFilterDest] = useState<string>("all");
+  const [filterDest, setFilterDest] = useState<string>("");
   const [filterDate, setFilterDate] = useState<string>(""); // yyyy-mm-dd
 
   /** Fetch trips + active bookings. Called on mount + on every Realtime event. */
@@ -127,20 +127,31 @@ export default function PassengerTrips() {
     return { takenByTrip: taken, mineByTrip: mine, ownSeatByTrip: ownSeat };
   }, [bookings, profile?.id]);
 
-  // Apply search filters (destination + earliest date) to the trips list.
+  // Today (local) yyyy-mm-dd — used as the min for the date filter so users
+  // physically cannot select a past date.
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }, []);
+
+  // Apply search filters: hide fully-booked trips, match destination (substring,
+  // case-insensitive), and require an exact date match when one is picked.
   const visibleTrips = useMemo(() => {
+    const q = filterDest.trim().toLowerCase();
     return trips.filter((t) => {
-      if (filterDest !== "all" && t.destination !== filterDest) return false;
+      // Hide fully-booked trips entirely from the passenger view.
+      const taken = takenByTrip[t.id]?.size ?? 0;
+      if (taken >= t.total_seats) return false;
+      if (q && q !== "all" && !t.destination.toLowerCase().includes(q)) return false;
       if (filterDate) {
-        // Compare on the user's local date (yyyy-mm-dd) for a friendly match.
         const tripDay = new Date(t.departure_at).toISOString().slice(0, 10);
-        if (tripDay < filterDate) return false;
+        if (tripDay !== filterDate) return false;
       }
       return true;
     });
-  }, [trips, filterDest, filterDate]);
+  }, [trips, filterDest, filterDate, takenByTrip]);
 
-  // Distinct destination options for the dropdown.
+  // Distinct destination options for the datalist autocomplete.
   const destinations = useMemo(
     () => Array.from(new Set(trips.map((t) => t.destination))).sort(),
     [trips],
