@@ -126,9 +126,9 @@ export default function Auth() {
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4">
       {/* Animated green blurred orbs in the background */}
       <div className="pointer-events-none absolute inset-0 -z-0 overflow-hidden">
-        <div className="absolute -top-32 -left-32 h-96 w-96 rounded-full bg-emerald-500/30 blur-3xl animate-blob" />
-        <div className="absolute top-1/3 -right-32 h-96 w-96 rounded-full bg-green-400/25 blur-3xl animate-blob animation-delay-2000" />
-        <div className="absolute -bottom-32 left-1/4 h-96 w-96 rounded-full bg-emerald-600/20 blur-3xl animate-blob animation-delay-4000" />
+        <div className="absolute -top-32 -left-32 h-96 w-96 rounded-full bg-primary/30 blur-3xl animate-blob" />
+        <div className="absolute top-1/3 -right-32 h-96 w-96 rounded-full bg-primary/25 blur-3xl animate-blob animation-delay-2000" />
+        <div className="absolute -bottom-32 left-1/4 h-96 w-96 rounded-full bg-primary/20 blur-3xl animate-blob animation-delay-4000" />
       </div>
 
       <div className="relative z-10 w-full max-w-md">
