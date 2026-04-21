@@ -10,7 +10,6 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import AppShell from "@/components/AppShell";
-import Greeting from "@/components/Greeting";
 import PasswordInput from "@/components/PasswordInput";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -135,7 +134,6 @@ export default function MyAccount() {
 
   return (
     <AppShell nav={nav}>
-      <Greeting subtitle="Manage your MASAR profile and security settings." />
       <div className="mb-6">
         <h1 className="text-2xl font-semibold">My account</h1>
         <p className="text-sm text-muted-foreground">
