@@ -260,16 +260,16 @@ export default function Auth() {
                   <Input
                     id="phone"
                     inputMode="numeric"
-                    maxLength={10}
-                    placeholder="5xxxxxxxx (10 digits)"
+                    maxLength={countryByCode(countryCode).localDigits}
+                    placeholder={`${countryByCode(countryCode).localDigits} digits`}
                     value={phoneLocal}
-                    onChange={(e) => setPhoneLocal(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    onChange={(e) => {
+                      const max = countryByCode(countryCode).localDigits;
+                      setPhoneLocal(e.target.value.replace(/\D/g, "").slice(0, max));
+                    }}
                     required
                   />
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Default is Saudi Arabia (+966).
-                </p>
               </div>
               <div>
                 <Label htmlFor="password">Password</Label>
