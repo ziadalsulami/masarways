@@ -97,6 +97,45 @@ export type Database = {
           },
         ]
       }
+      reports: {
+        Row: {
+          active_bookings: number
+          cancelled_bookings: number
+          created_at: string
+          from_date: string
+          generated_by: string | null
+          id: string
+          kind: string
+          revenue_sar: number
+          to_date: string
+          total_bookings: number
+        }
+        Insert: {
+          active_bookings?: number
+          cancelled_bookings?: number
+          created_at?: string
+          from_date: string
+          generated_by?: string | null
+          id?: string
+          kind: string
+          revenue_sar?: number
+          to_date: string
+          total_bookings?: number
+        }
+        Update: {
+          active_bookings?: number
+          cancelled_bookings?: number
+          created_at?: string
+          from_date?: string
+          generated_by?: string | null
+          id?: string
+          kind?: string
+          revenue_sar?: number
+          to_date?: string
+          total_bookings?: number
+        }
+        Relationships: []
+      }
       trains: {
         Row: {
           code: string
