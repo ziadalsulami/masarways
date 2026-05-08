@@ -229,6 +229,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      ensure_passenger_profile: {
+        Args: { _email: string; _full_name: string; _phone: string }
+        Returns: undefined
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
