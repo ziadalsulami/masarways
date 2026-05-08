@@ -105,15 +105,22 @@ export default function AdminDashboard() {
     [trips],
   );
 
+  // Trips whose departure is still in the future — bookings tied to past
+  // trips are no longer "active" from an operations standpoint.
+  const upcomingTripIds = useMemo(
+    () => new Set(trips.filter((t) => new Date(t.departure_at).getTime() > Date.now()).map((t) => t.id)),
+    [trips],
+  );
+
   const activeBookings = useMemo(
-    () => bookings.filter((b) => b.status === "active"),
-    [bookings],
+    () => bookings.filter((b) => b.status === "active" && upcomingTripIds.has(b.trip_id)),
+    [bookings, upcomingTripIds],
   );
 
   // KPIs
   const stats = useMemo(() => {
     const revenue = activeBookings.reduce((s, b) => s + (priceById.get(b.trip_id) ?? 0), 0);
-    const upcoming = trips.filter((t) => new Date(t.departure_at) > new Date()).length;
+    const upcoming = upcomingTripIds.size;
     return {
       trains: trainCount,
       passengers: passengerCount,
@@ -121,7 +128,7 @@ export default function AdminDashboard() {
       upcoming,
       revenue,
     };
-  }, [activeBookings, priceById, trips, trainCount, passengerCount]);
+  }, [activeBookings, priceById, upcomingTripIds, trainCount, passengerCount]);
 
   // Bookings per day (last 14 days)
   const dailyData = useMemo(() => {

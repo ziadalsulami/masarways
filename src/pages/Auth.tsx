@@ -28,6 +28,9 @@ import {
 import { toast } from "sonner";
 import { TrainFront } from "lucide-react";
 import { COUNTRIES, DEFAULT_COUNTRY } from "@/lib/countries";
+
+const countryByCode = (code: string) =>
+  COUNTRIES.find((c) => c.code === code) ?? DEFAULT_COUNTRY;
 import PasswordInput from "@/components/PasswordInput";
 
 // Validate inputs strictly so bad data never reaches the database.
@@ -42,13 +45,18 @@ const passwordSchema = z
   .regex(/\d/, "Password must contain a number")
   .regex(/[^A-Za-z0-9]/, "Password must contain a special character");
 
-const signUpSchema = z.object({
-  full_name: z.string().trim().min(2, "Name is too short").max(100),
-  email: z.string().trim().email("Invalid email").max(255),
-  phone_local: z.string().trim().regex(/^\d{10}$/, "Phone must be exactly 10 digits"),
-  password: passwordSchema,
-  confirm: z.string(),
-}).refine((d) => d.password === d.confirm, { message: "Passwords do not match", path: ["confirm"] });
+const buildSignUpSchema = (localDigits: number) =>
+  z.object({
+    full_name: z.string().trim().min(2, "Name is too short").max(100),
+    email: z.string().trim().email("Invalid email").max(255),
+    phone_local: z
+      .string()
+      .trim()
+      .regex(new RegExp(`^\\d{${localDigits}}$`), `Phone must be exactly ${localDigits} digits`),
+    password: passwordSchema,
+    confirm: z.string(),
+  })
+  .refine((d) => d.password === d.confirm, { message: "Passwords do not match", path: ["confirm"] });
 
 type Mode = "signin" | "signup" | "forgot";
 
@@ -93,7 +101,8 @@ export default function Auth() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    const parsed = signUpSchema.safeParse({
+    const country = countryByCode(countryCode);
+    const parsed = buildSignUpSchema(country.localDigits).safeParse({
       full_name: fullName,
       email,
       phone_local: phoneLocal,
@@ -251,16 +260,16 @@ export default function Auth() {
                   <Input
                     id="phone"
                     inputMode="numeric"
-                    maxLength={10}
-                    placeholder="5xxxxxxxx (10 digits)"
+                    maxLength={countryByCode(countryCode).localDigits}
+                    placeholder={`${countryByCode(countryCode).localDigits} digits`}
                     value={phoneLocal}
-                    onChange={(e) => setPhoneLocal(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    onChange={(e) => {
+                      const max = countryByCode(countryCode).localDigits;
+                      setPhoneLocal(e.target.value.replace(/\D/g, "").slice(0, max));
+                    }}
                     required
                   />
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Default is Saudi Arabia (+966).
-                </p>
               </div>
               <div>
                 <Label htmlFor="password">Password</Label>
