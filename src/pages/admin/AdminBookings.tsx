@@ -71,7 +71,7 @@ export default function AdminBookings() {
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     return rows.filter((r) => {
-      if (filter !== "all" && r.status !== filter) return false;
+      if (filter !== "all" && displayStatus(r) !== filter) return false;
       if (!q) return true;
       const blob = [
         r.reference,
