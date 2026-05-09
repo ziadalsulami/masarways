@@ -278,12 +278,8 @@ export default function PassengerTrips() {
           const pct = (seatsTaken / t.total_seats) * 100;
           const alreadyBooked = mineByTrip.has(t.id);
           return (
-            <button
+            <div
               key={t.id}
-              onClick={() => {
-                setChosenSeat(null);
-                setSelectedId(t.id);
-              }}
               className="group rounded-lg border border-border bg-card p-4 text-left transition hover:border-primary/60 hover:shadow-md"
             >
               <div className="flex items-center justify-between">
@@ -304,6 +300,35 @@ export default function PassengerTrips() {
                 <span>
                   {seatsLeft} of {t.total_seats} available
                 </span>
+                {alreadyBooked && (
+                  <span className="rounded bg-primary/10 px-1.5 py-0.5 text-primary">
+                    Your seat #{ownSeatByTrip[t.id]}
+                  </span>
+                )}
+              </div>
+              {/* Action button */}
+              <div className="mt-3">
+                {alreadyBooked ? (
+                  <button
+                    onClick={() => navigate("/app/bookings")}
+                    className="inline-flex w-full items-center justify-center rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition hover:bg-primary/20"
+                  >
+                    Manage booking
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setChosenSeat(null);
+                      setSelectedId(t.id);
+                    }}
+                    className="inline-flex w-full items-center justify-center rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition hover:bg-primary/90"
+                  >
+                    Book a seat
+                  </button>
+                )}
+              </div>
+            </div>
+          );
                 {alreadyBooked && (
                   <span className="rounded bg-primary/10 px-1.5 py-0.5 text-primary">
                     Your seat #{ownSeatByTrip[t.id]}
