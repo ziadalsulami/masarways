@@ -278,12 +278,8 @@ export default function PassengerTrips() {
           const pct = (seatsTaken / t.total_seats) * 100;
           const alreadyBooked = mineByTrip.has(t.id);
           return (
-            <button
+            <div
               key={t.id}
-              onClick={() => {
-                setChosenSeat(null);
-                setSelectedId(t.id);
-              }}
               className="group rounded-lg border border-border bg-card p-4 text-left transition hover:border-primary/60 hover:shadow-md"
             >
               <div className="flex items-center justify-between">
@@ -310,20 +306,28 @@ export default function PassengerTrips() {
                   </span>
                 )}
               </div>
-              {/* Action button — clearly indicates whether the user can book or
-                  has already booked this trip. */}
+              {/* Action button */}
               <div className="mt-3">
                 {alreadyBooked ? (
-                  <span className="inline-flex w-full items-center justify-center rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary">
-                    ✓ Booked
-                  </span>
+                  <button
+                    onClick={() => navigate("/app/bookings")}
+                    className="inline-flex w-full items-center justify-center rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition hover:bg-primary/20"
+                  >
+                    Manage booking
+                  </button>
                 ) : (
-                  <span className="inline-flex w-full items-center justify-center rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition group-hover:bg-primary/90">
+                  <button
+                    onClick={() => {
+                      setChosenSeat(null);
+                      setSelectedId(t.id);
+                    }}
+                    className="inline-flex w-full items-center justify-center rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition hover:bg-primary/90"
+                  >
                     Book a seat
-                  </span>
+                  </button>
                 )}
               </div>
-            </button>
+            </div>
           );
         })}
         {visibleTrips.length === 0 && (
