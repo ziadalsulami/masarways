@@ -328,6 +328,7 @@ export default function PassengerTrips() {
                 )}
               </div>
             </div>
+          );
         })}
         {visibleTrips.length === 0 && (
           <div className="rounded-lg border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground sm:col-span-2 lg:col-span-3">
