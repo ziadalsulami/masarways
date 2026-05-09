@@ -158,34 +158,39 @@ export default function AdminTrips() {
               </tr>
             </thead>
             <tbody>
-              {trips.map((t) => (
-                <tr key={t.id} className="border-t border-border">
-                  <td className="px-4 py-2 whitespace-nowrap">{t.trains?.code}</td>
-                  <td className="px-4 py-2 whitespace-nowrap">{t.origin} → {t.destination}</td>
-                  <td className="px-4 py-2 whitespace-nowrap">{format(new Date(t.departure_at), "yyyy-MM-dd HH:mm")}</td>
-                  <td className="px-4 py-2 whitespace-nowrap">{format(new Date(t.arrival_at), "yyyy-MM-dd HH:mm")}</td>
-                  <td className="px-4 py-2 whitespace-nowrap">{activeByTrip[t.id] ?? 0} / {t.total_seats}</td>
-                  <td className="px-4 py-2 whitespace-nowrap">{Number(t.price_sar).toFixed(2)} SAR</td>
-                  <td className="px-4 py-2 whitespace-nowrap">
-                    <span className={`rounded px-2 py-0.5 text-xs ${STATUS_BADGE[t.status]}`}>{t.status}</span>
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    <div className="inline-flex gap-1">
-                      <Button size="icon" variant="ghost" onClick={() => openEdit(t)} title="Edit">
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      {t.status === "scheduled" && (
-                        <Button size="icon" variant="ghost" onClick={() => cancelTrip(t)} title="Cancel">
-                          <Ban className="h-4 w-4" />
+              {trips.map((t) => {
+                const isPast = new Date(t.departure_at).getTime() < Date.now();
+                const effective: Trip["status"] =
+                  t.status === "scheduled" && isPast ? "departed" : t.status;
+                return (
+                  <tr key={t.id} className="border-t border-border">
+                    <td className="px-4 py-2 whitespace-nowrap">{t.trains?.code}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">{t.origin} → {t.destination}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">{format(new Date(t.departure_at), "yyyy-MM-dd HH:mm")}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">{format(new Date(t.arrival_at), "yyyy-MM-dd HH:mm")}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">{activeByTrip[t.id] ?? 0} / {t.total_seats}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">{Number(t.price_sar).toFixed(2)} SAR</td>
+                    <td className="px-4 py-2 whitespace-nowrap">
+                      <span className={`rounded px-2 py-0.5 text-xs capitalize ${STATUS_BADGE[effective]}`}>{effective}</span>
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      <div className="inline-flex gap-1">
+                        <Button size="icon" variant="ghost" onClick={() => openEdit(t)} title="Edit">
+                          <Pencil className="h-4 w-4" />
                         </Button>
-                      )}
-                      <Button size="icon" variant="ghost" onClick={() => deleteTrip(t)} title="Delete">
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        {effective === "scheduled" && (
+                          <Button size="icon" variant="ghost" onClick={() => cancelTrip(t)} title="Cancel">
+                            <Ban className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button size="icon" variant="ghost" onClick={() => deleteTrip(t)} title="Delete">
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
               {trips.length === 0 && (
                 <tr><td colSpan={8} className="px-4 py-6 text-center text-muted-foreground">No trips yet.</td></tr>
               )}
