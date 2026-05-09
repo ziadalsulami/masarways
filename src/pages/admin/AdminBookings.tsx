@@ -24,7 +24,20 @@ interface Row {
   trips: { origin: string; destination: string; departure_at: string; trains: { code: string } | null } | null;
 }
 
-const FILTERS = ["all", "active", "cancelled"] as const;
+const FILTERS = ["all", "active", "departed", "cancelled"] as const;
+type DisplayStatus = "active" | "departed" | "cancelled";
+
+const displayStatus = (r: Row): DisplayStatus => {
+  if (r.status === "cancelled") return "cancelled";
+  if (r.trips && new Date(r.trips.departure_at).getTime() < Date.now()) return "departed";
+  return "active";
+};
+
+const STATUS_STYLE: Record<DisplayStatus, string> = {
+  active: "bg-accent text-accent-foreground",
+  departed: "bg-primary/15 text-primary",
+  cancelled: "bg-muted text-muted-foreground",
+};
 
 export default function AdminBookings() {
   const [rows, setRows] = useState<Row[]>([]);
