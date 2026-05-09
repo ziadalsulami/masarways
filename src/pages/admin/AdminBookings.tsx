@@ -128,30 +128,33 @@ export default function AdminBookings() {
               </tr>
             </thead>
             <tbody>
-              {visible.map((r) => (
-                <tr key={r.id} className="border-t border-border">
-                  <td className="px-4 py-2 font-mono text-xs">{r.reference}</td>
-                  <td className="px-4 py-2 whitespace-nowrap">
-                    {r.profiles?.full_name}{" "}
-                    <span className="text-muted-foreground">({r.profiles?.masar_id})</span>
-                  </td>
-                  <td className="px-4 py-2">{r.trips?.trains?.code}</td>
-                  <td className="px-4 py-2 whitespace-nowrap">{r.trips?.origin} → {r.trips?.destination}</td>
-                  <td className="px-4 py-2 whitespace-nowrap">{r.trips && format(new Date(r.trips.departure_at), "yyyy-MM-dd HH:mm")}</td>
-                  <td className="px-4 py-2">#{r.seat_number}</td>
-                  <td className="px-4 py-2">
-                    <span className={`rounded px-2 py-0.5 text-xs ${r.status === "active" ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground"}`}>
-                      {r.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 whitespace-nowrap">{format(new Date(r.created_at), "yyyy-MM-dd HH:mm")}</td>
-                  <td className="px-4 py-2 text-right">
-                    {r.status === "active" && (
-                      <Button size="sm" variant="outline" onClick={() => cancel(r.id)}>Cancel</Button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {visible.map((r) => {
+                const s = displayStatus(r);
+                return (
+                  <tr key={r.id} className="border-t border-border">
+                    <td className="px-4 py-2 font-mono text-xs">{r.reference}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">
+                      {r.profiles?.full_name}{" "}
+                      <span className="text-muted-foreground">({r.profiles?.masar_id})</span>
+                    </td>
+                    <td className="px-4 py-2">{r.trips?.trains?.code}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">{r.trips?.origin} → {r.trips?.destination}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">{r.trips && format(new Date(r.trips.departure_at), "yyyy-MM-dd HH:mm")}</td>
+                    <td className="px-4 py-2">#{r.seat_number}</td>
+                    <td className="px-4 py-2">
+                      <span className={`rounded px-2 py-0.5 text-xs capitalize ${STATUS_STYLE[s]}`}>
+                        {s}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap">{format(new Date(r.created_at), "yyyy-MM-dd HH:mm")}</td>
+                    <td className="px-4 py-2 text-right">
+                      {s === "active" && (
+                        <Button size="sm" variant="outline" onClick={() => cancel(r.id)}>Cancel</Button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
               {visible.length === 0 && (
                 <tr><td colSpan={9} className="px-4 py-6 text-center text-muted-foreground">No bookings match.</td></tr>
               )}
