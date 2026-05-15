@@ -13,6 +13,7 @@ import { ADMIN_NAV } from "./nav";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { Search } from "lucide-react";
+import { BOOKING_STATUS_STYLE, getBookingDisplayStatus, useMinuteNow } from "@/lib/trips";
 
 interface Row {
   id: string;
@@ -21,33 +22,21 @@ interface Row {
   status: "active" | "cancelled";
   created_at: string;
   profiles: { masar_id: string; full_name: string } | null;
-  trips: { origin: string; destination: string; departure_at: string; trains: { code: string } | null } | null;
+  trips: { origin: string; destination: string; departure_at: string; status: "scheduled" | "departed" | "arrived" | "cancelled"; trains: { code: string } | null } | null;
 }
 
 const FILTERS = ["all", "active", "departed", "cancelled"] as const;
-type DisplayStatus = "active" | "departed" | "cancelled";
-
-const displayStatus = (r: Row): DisplayStatus => {
-  if (r.status === "cancelled") return "cancelled";
-  if (r.trips && new Date(r.trips.departure_at).getTime() < Date.now()) return "departed";
-  return "active";
-};
-
-const STATUS_STYLE: Record<DisplayStatus, string> = {
-  active: "bg-accent text-accent-foreground",
-  departed: "bg-primary/15 text-primary",
-  cancelled: "bg-muted text-muted-foreground",
-};
 
 export default function AdminBookings() {
   const [rows, setRows] = useState<Row[]>([]);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
   const [query, setQuery] = useState("");
+  const now = useMinuteNow();
 
   const load = async () => {
     const { data } = await supabase
       .from("bookings")
-      .select("id, reference, seat_number, status, created_at, profiles(masar_id, full_name), trips(origin, destination, departure_at, trains(code))")
+      .select("id, reference, seat_number, status, created_at, profiles(masar_id, full_name), trips(origin, destination, departure_at, status, trains(code))")
       .order("created_at", { ascending: false });
     setRows((data ?? []) as unknown as Row[]);
   };
@@ -57,6 +46,7 @@ export default function AdminBookings() {
     const channel = supabase
       .channel("admin-bookings-table")
       .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "trips" }, () => load())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, []);
@@ -71,7 +61,7 @@ export default function AdminBookings() {
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     return rows.filter((r) => {
-      if (filter !== "all" && displayStatus(r) !== filter) return false;
+      if (filter !== "all" && getBookingDisplayStatus(r, now) !== filter) return false;
       if (!q) return true;
       const blob = [
         r.reference,
@@ -83,7 +73,7 @@ export default function AdminBookings() {
       ].filter(Boolean).join(" ").toLowerCase();
       return blob.includes(q);
     });
-  }, [rows, filter, query]);
+  }, [rows, filter, query, now]);
 
   return (
     <AppShell nav={ADMIN_NAV}>
@@ -129,7 +119,7 @@ export default function AdminBookings() {
             </thead>
             <tbody>
               {visible.map((r) => {
-                const s = displayStatus(r);
+                const s = getBookingDisplayStatus(r, now);
                 return (
                   <tr key={r.id} className="border-t border-border">
                     <td className="px-4 py-2 font-mono text-xs">{r.reference}</td>
@@ -142,7 +132,7 @@ export default function AdminBookings() {
                     <td className="px-4 py-2 whitespace-nowrap">{r.trips && format(new Date(r.trips.departure_at), "yyyy-MM-dd HH:mm")}</td>
                     <td className="px-4 py-2">#{r.seat_number}</td>
                     <td className="px-4 py-2">
-                      <span className={`rounded px-2 py-0.5 text-xs capitalize ${STATUS_STYLE[s]}`}>
+                      <span className={`rounded px-2 py-0.5 text-xs capitalize ${BOOKING_STATUS_STYLE[s]}`}>
                         {s}
                       </span>
                     </td>
