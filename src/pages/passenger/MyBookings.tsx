@@ -95,7 +95,7 @@ export default function MyBookings() {
   };
 
   const managingStatus = useMemo(
-    () => (managing ? displayStatus(managing) : null),
+    () => (managing ? getBookingDisplayStatus(managing, now) : null),
     [managing, now],
   );
 
@@ -157,7 +157,7 @@ export default function MyBookings() {
                 <div className="flex items-center gap-2">
                   <span
                     className={`rounded px-2 py-0.5 text-xs capitalize ${
-                      STATUS_STYLE[managingStatus!]
+                      BOOKING_STATUS_STYLE[managingStatus!]
                     }`}
                   >
                     {managingStatus}
