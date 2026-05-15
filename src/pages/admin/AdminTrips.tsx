@@ -36,6 +36,7 @@ import { ADMIN_NAV } from "./nav";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { Plus, Pencil, Ban, Trash2 } from "lucide-react";
+import { getTripDisplayStatus, TRIP_STATUS_STYLE, useMinuteNow } from "@/lib/trips";
 
 interface Train { id: string; code: string; name: string; }
 interface Trip {
@@ -51,13 +52,6 @@ interface Trip {
   trains: { code: string; name: string } | null;
 }
 
-const STATUS_BADGE: Record<Trip["status"], string> = {
-  scheduled: "bg-accent text-accent-foreground",
-  departed:  "bg-primary/15 text-primary",
-  arrived:   "bg-muted text-muted-foreground",
-  cancelled: "bg-destructive/15 text-destructive",
-};
-
 export default function AdminTrips() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [trains, setTrains] = useState<Train[]>([]);
@@ -65,6 +59,7 @@ export default function AdminTrips() {
   const [activeByTrip, setActiveByTrip] = useState<Record<string, number>>({});
   const [editing, setEditing] = useState<Trip | null>(null);
   const [open, setOpen] = useState(false);
+  const now = useMinuteNow();
 
   const load = async () => {
     const [tripsRes, trainsRes, bookingsRes] = await Promise.all([
@@ -159,9 +154,7 @@ export default function AdminTrips() {
             </thead>
             <tbody>
               {trips.map((t) => {
-                const isPast = new Date(t.departure_at).getTime() < Date.now();
-                const effective: Trip["status"] =
-                  t.status === "scheduled" && isPast ? "departed" : t.status;
+                const effective = getTripDisplayStatus(t, now);
                 return (
                   <tr key={t.id} className="border-t border-border">
                     <td className="px-4 py-2 whitespace-nowrap">{t.trains?.code}</td>
@@ -171,14 +164,14 @@ export default function AdminTrips() {
                     <td className="px-4 py-2 whitespace-nowrap">{activeByTrip[t.id] ?? 0} / {t.total_seats}</td>
                     <td className="px-4 py-2 whitespace-nowrap">{Number(t.price_sar).toFixed(2)} SAR</td>
                     <td className="px-4 py-2 whitespace-nowrap">
-                      <span className={`rounded px-2 py-0.5 text-xs capitalize ${STATUS_BADGE[effective]}`}>{effective}</span>
+                      <span className={`rounded px-2 py-0.5 text-xs capitalize ${TRIP_STATUS_STYLE[effective]}`}>{effective}</span>
                     </td>
                     <td className="px-4 py-2 text-right">
                       <div className="inline-flex gap-1">
                         <Button size="icon" variant="ghost" onClick={() => openEdit(t)} title="Edit">
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        {effective === "scheduled" && (
+                        {effective === "active" && (
                           <Button size="icon" variant="ghost" onClick={() => cancelTrip(t)} title="Cancel">
                             <Ban className="h-4 w-4" />
                           </Button>
