@@ -29,6 +29,7 @@ import { downloadReceipt } from "@/lib/pdf";
 import { TrainFront } from "lucide-react";
 import Greeting from "@/components/Greeting";
 import SeatMap from "@/components/SeatMap";
+import { isActiveTrip, useMinuteNow } from "@/lib/trips";
 import {
   Dialog,
   DialogContent,
@@ -45,6 +46,7 @@ interface Trip {
   arrival_at: string;
   total_seats: number;
   price_sar: number;
+  status: "scheduled" | "departed" | "arrived" | "cancelled";
   trains: { code: string; name: string } | null;
 }
 
@@ -72,6 +74,7 @@ export default function PassengerTrips() {
   // we filter the trips list client-side so the UX stays instant.
   const [filterDest, setFilterDest] = useState<string>("");
   const [filterDate, setFilterDate] = useState<string>(""); // yyyy-mm-dd
+  const now = useMinuteNow();
 
   /** Fetch trips + active bookings. Called on mount + on every Realtime event. */
   const loadAll = async () => {
@@ -79,7 +82,7 @@ export default function PassengerTrips() {
     const [tripsRes, bookingsRes] = await Promise.all([
       supabase
         .from("trips")
-        .select("id, origin, destination, departure_at, arrival_at, total_seats, price_sar, trains(code,name)")
+        .select("id, origin, destination, departure_at, arrival_at, total_seats, price_sar, status, trains(code,name)")
         .gte("departure_at", nowIso)
         .eq("status", "scheduled")
         .order("departure_at", { ascending: true }),
@@ -100,6 +103,7 @@ export default function PassengerTrips() {
     const channel = supabase
       .channel("bookings-live")
       .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, () => loadAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "trips" }, () => loadAll())
       .subscribe();
 
     return () => {
@@ -139,6 +143,7 @@ export default function PassengerTrips() {
   const visibleTrips = useMemo(() => {
     const q = filterDest.trim().toLowerCase();
     return trips.filter((t) => {
+      if (!isActiveTrip(t, now)) return false;
       // Hide fully-booked trips entirely from the passenger view.
       const taken = takenByTrip[t.id]?.size ?? 0;
       if (taken >= t.total_seats) return false;
@@ -149,7 +154,7 @@ export default function PassengerTrips() {
       }
       return true;
     });
-  }, [trips, filterDest, filterDate, takenByTrip]);
+  }, [trips, filterDest, filterDate, takenByTrip, now]);
 
   // Distinct destination options for the datalist autocomplete.
   const destinations = useMemo(
