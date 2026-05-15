@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { ADMIN_NAV } from "./nav";
 import { format } from "date-fns";
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
+import { BOOKING_STATUS_STYLE, getBookingDisplayStatus, useMinuteNow } from "@/lib/trips";
 
 interface Passenger {
   id: string;
@@ -28,7 +29,7 @@ interface BookingRow {
   seat_number: number;
   status: "active" | "cancelled";
   passenger_id: string;
-  trips: { origin: string; destination: string; departure_at: string } | null;
+  trips: { origin: string; destination: string; departure_at: string; status: "scheduled" | "departed" | "arrived" | "cancelled" } | null;
 }
 
 export default function AdminPassengers() {
@@ -36,17 +37,26 @@ export default function AdminPassengers() {
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
+  const now = useMinuteNow();
 
   const load = async () => {
     const [pRes, bRes] = await Promise.all([
       supabase.from("profiles").select("id, masar_id, full_name, email, phone, created_at")
         .like("masar_id", "P%").order("masar_id"),
-      supabase.from("bookings").select("id, reference, seat_number, status, passenger_id, trips(origin,destination,departure_at)"),
+      supabase.from("bookings").select("id, reference, seat_number, status, passenger_id, trips(origin,destination,departure_at,status)"),
     ]);
     setPax((pRes.data ?? []) as Passenger[]);
     setBookings((bRes.data ?? []) as unknown as BookingRow[]);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    const channel = supabase
+      .channel("admin-passengers-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "trips" }, () => load())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   // Pre-bucket bookings per passenger for fast expansion + counts.
   const byPassenger = useMemo(() => {
@@ -92,7 +102,7 @@ export default function AdminPassengers() {
           <tbody>
             {filtered.flatMap((p) => {
               const list = byPassenger[p.id] ?? [];
-              const active = list.filter((b) => b.status === "active").length;
+              const active = list.filter((b) => getBookingDisplayStatus(b, now) === "active").length;
               const expanded = openId === p.id;
               const out: JSX.Element[] = [
                 <tr
@@ -120,7 +130,9 @@ export default function AdminPassengers() {
                         <span className="text-muted-foreground">No bookings.</span>
                       ) : (
                         <ul className="space-y-1 text-xs">
-                          {list.map((b) => (
+                          {list.map((b) => {
+                            const status = getBookingDisplayStatus(b, now);
+                            return (
                             <li key={b.id} className="flex items-center justify-between">
                               <span>
                                 <span className="font-mono">{b.reference}</span> ·{" "}
@@ -128,11 +140,12 @@ export default function AdminPassengers() {
                                 {b.trips && format(new Date(b.trips.departure_at), "yyyy-MM-dd HH:mm")} ·{" "}
                                 Seat #{b.seat_number}
                               </span>
-                              <span className={`rounded px-1.5 py-0.5 ${b.status === "active" ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground"}`}>
-                                {b.status}
+                              <span className={`rounded px-1.5 py-0.5 capitalize ${BOOKING_STATUS_STYLE[status]}`}>
+                                {status}
                               </span>
                             </li>
-                          ))}
+                          );
+                          })}
                         </ul>
                       )}
                     </td>
