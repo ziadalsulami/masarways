@@ -26,6 +26,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { downloadReceipt } from "@/lib/pdf";
 import { Download, X, TrainFront, MapPin, Clock } from "lucide-react";
+import { BOOKING_STATUS_STYLE, getBookingDisplayStatus, useMinuteNow } from "@/lib/trips";
 
 interface Booking {
   id: string;
@@ -38,35 +39,23 @@ interface Booking {
     departure_at: string;
     arrival_at: string;
     price_sar: number;
+    status: "scheduled" | "departed" | "arrived" | "cancelled";
     trains: { code: string; name: string } | null;
   } | null;
 }
-
-type DisplayStatus = "active" | "departed" | "cancelled";
-
-const displayStatus = (b: Booking): DisplayStatus => {
-  if (b.status === "cancelled") return "cancelled";
-  if (b.trips && new Date(b.trips.departure_at).getTime() < Date.now()) return "departed";
-  return "active";
-};
-
-const STATUS_STYLE: Record<DisplayStatus, string> = {
-  active: "bg-accent text-accent-foreground",
-  departed: "bg-primary/15 text-primary",
-  cancelled: "bg-muted text-muted-foreground",
-};
 
 export default function MyBookings() {
   const { profile } = useAuth();
   const [rows, setRows] = useState<Booking[]>([]);
   const [managing, setManaging] = useState<Booking | null>(null);
+  const now = useMinuteNow();
 
   const load = async () => {
     if (!profile) return;
     const { data } = await supabase
       .from("bookings")
       .select(
-        "id, reference, seat_number, status, trips(origin,destination,departure_at,arrival_at,price_sar, trains(code,name))",
+        "id, reference, seat_number, status, trips(origin,destination,departure_at,arrival_at,price_sar,status, trains(code,name))",
       )
       .eq("passenger_id", profile.id)
       .order("created_at", { ascending: false });
@@ -75,6 +64,12 @@ export default function MyBookings() {
 
   useEffect(() => {
     load();
+    const channel = supabase
+      .channel("my-bookings-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "trips" }, () => load())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id]);
 
@@ -106,8 +101,8 @@ export default function MyBookings() {
   };
 
   const managingStatus = useMemo(
-    () => (managing ? displayStatus(managing) : null),
-    [managing],
+    () => (managing ? getBookingDisplayStatus(managing, now) : null),
+    [managing, now],
   );
 
   return (
@@ -121,7 +116,7 @@ export default function MyBookings() {
 
       <div className="grid gap-3">
         {rows.map((b) => {
-          const s = displayStatus(b);
+          const s = getBookingDisplayStatus(b, now);
           return (
             <Card
               key={b.id}
@@ -137,7 +132,7 @@ export default function MyBookings() {
                   {b.trips && format(new Date(b.trips.departure_at), "EEE d MMM, HH:mm")} · Seat #
                   {b.seat_number}
                 </div>
-                <div className={`mt-1 inline-block rounded px-2 py-0.5 text-xs capitalize ${STATUS_STYLE[s]}`}>
+                <div className={`mt-1 inline-block rounded px-2 py-0.5 text-xs capitalize ${BOOKING_STATUS_STYLE[s]}`}>
                   {s}
                 </div>
               </div>
@@ -168,7 +163,7 @@ export default function MyBookings() {
                 <div className="flex items-center gap-2">
                   <span
                     className={`rounded px-2 py-0.5 text-xs capitalize ${
-                      STATUS_STYLE[managingStatus!]
+                      BOOKING_STATUS_STYLE[managingStatus!]
                     }`}
                   >
                     {managingStatus}

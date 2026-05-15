@@ -33,6 +33,7 @@ import {
   Line,
 } from "recharts";
 import { TrainFront, Ticket, Users, Wallet } from "lucide-react";
+import { getTripDisplayStatus, isActiveTrip, useMinuteNow } from "@/lib/trips";
 
 // Palette derived from the design system primary token plus complementary hues.
 const PIE_COLORS = [
@@ -51,6 +52,7 @@ interface TripRow {
   departure_at: string;
   total_seats: number;
   price_sar: number;
+  status: "scheduled" | "departed" | "arrived" | "cancelled";
   trains: { code: string; name: string } | null;
 }
 
@@ -66,6 +68,7 @@ export default function AdminDashboard() {
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [trainCount, setTrainCount] = useState(0);
   const [passengerCount, setPassengerCount] = useState(0);
+  const now = useMinuteNow();
 
   /** Pull everything we need to compute the dashboard. */
   const loadAll = async () => {
@@ -73,7 +76,7 @@ export default function AdminDashboard() {
       supabase.from("trains").select("id", { count: "exact", head: true }),
       supabase
         .from("trips")
-        .select("id, origin, destination, departure_at, total_seats, price_sar, trains(code,name)"),
+        .select("id, origin, destination, departure_at, total_seats, price_sar, status, trains(code,name)"),
       supabase.from("bookings").select("id, trip_id, status, created_at"),
       supabase
         .from("profiles")
@@ -92,6 +95,7 @@ export default function AdminDashboard() {
     const channel = supabase
       .channel("admin-bookings-live")
       .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, () => loadAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "trips" }, () => loadAll())
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
@@ -108,8 +112,8 @@ export default function AdminDashboard() {
   // Trips whose departure is still in the future — bookings tied to past
   // trips are no longer "active" from an operations standpoint.
   const upcomingTripIds = useMemo(
-    () => new Set(trips.filter((t) => new Date(t.departure_at).getTime() > Date.now()).map((t) => t.id)),
-    [trips],
+    () => new Set(trips.filter((t) => isActiveTrip(t, now)).map((t) => t.id)),
+    [trips, now],
   );
 
   const activeBookings = useMemo(
@@ -165,15 +169,15 @@ export default function AdminDashboard() {
   const statusPie = useMemo(() => {
     const map = new Map<string, number>();
     trips.forEach((t) => {
-      const s = (t as TripRow & { status?: string }).status ?? "scheduled";
+      const s = getTripDisplayStatus(t, now);
       map.set(s, (map.get(s) ?? 0) + 1);
     });
     return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
-  }, [trips]);
+  }, [trips, now]);
 
   // Pie: occupancy split (booked vs available across all upcoming trips)
   const occupancyPie = useMemo(() => {
-    const upcoming = trips.filter((t) => new Date(t.departure_at).getTime() > Date.now());
+    const upcoming = trips.filter((t) => isActiveTrip(t, now));
     const total = upcoming.reduce((s, t) => s + t.total_seats, 0);
     const booked = upcoming.reduce(
       (s, t) => s + activeBookings.filter((b) => b.trip_id === t.id).length,
@@ -183,7 +187,7 @@ export default function AdminDashboard() {
       { name: "Booked", value: booked },
       { name: "Available", value: Math.max(0, total - booked) },
     ];
-  }, [trips, activeBookings]);
+  }, [trips, activeBookings, now]);
 
   // Line: cumulative revenue over the last 14 days
   const revenueTrend = useMemo(() => {
@@ -200,15 +204,14 @@ export default function AdminDashboard() {
 
   // Upcoming-trips table with occupancy
   const upcomingTrips = useMemo(() => {
-    const now = Date.now();
     return trips
-      .filter((t) => new Date(t.departure_at).getTime() > now)
+      .filter((t) => isActiveTrip(t, now))
       .sort((a, b) => +new Date(a.departure_at) - +new Date(b.departure_at))
       .map((t) => ({
         ...t,
         booked: activeBookings.filter((b) => b.trip_id === t.id).length,
       }));
-  }, [trips, activeBookings]);
+  }, [trips, activeBookings, now]);
 
   return (
     <AppShell nav={ADMIN_NAV}>

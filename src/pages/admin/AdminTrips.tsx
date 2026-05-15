@@ -36,6 +36,7 @@ import { ADMIN_NAV } from "./nav";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { Plus, Pencil, Ban, Trash2 } from "lucide-react";
+import { getTripDisplayStatus, isActiveTrip, TRIP_STATUS_STYLE, useMinuteNow } from "@/lib/trips";
 
 interface Train { id: string; code: string; name: string; }
 interface Trip {
@@ -51,13 +52,6 @@ interface Trip {
   trains: { code: string; name: string } | null;
 }
 
-const STATUS_BADGE: Record<Trip["status"], string> = {
-  scheduled: "bg-accent text-accent-foreground",
-  departed:  "bg-primary/15 text-primary",
-  arrived:   "bg-muted text-muted-foreground",
-  cancelled: "bg-destructive/15 text-destructive",
-};
-
 export default function AdminTrips() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [trains, setTrains] = useState<Train[]>([]);
@@ -65,6 +59,7 @@ export default function AdminTrips() {
   const [activeByTrip, setActiveByTrip] = useState<Record<string, number>>({});
   const [editing, setEditing] = useState<Trip | null>(null);
   const [open, setOpen] = useState(false);
+  const now = useMinuteNow();
 
   const load = async () => {
     const [tripsRes, trainsRes, bookingsRes] = await Promise.all([
@@ -97,6 +92,7 @@ export default function AdminTrips() {
 
   const openNew = () => { setEditing(null); setOpen(true); };
   const openEdit = (t: Trip) => { setEditing(t); setOpen(true); };
+  const activeCountForTrip = (t: Trip) => (isActiveTrip(t, now) ? activeByTrip[t.id] ?? 0 : 0);
 
   /** Mark a trip cancelled; keeps history but releases seats. */
   const cancelTrip = async (t: Trip) => {
@@ -111,7 +107,7 @@ export default function AdminTrips() {
 
   /** Hard delete — only safe when no bookings have ever existed for this trip. */
   const deleteTrip = async (t: Trip) => {
-    if ((activeByTrip[t.id] ?? 0) > 0) {
+    if (activeCountForTrip(t) > 0) {
       toast.error("Cancel the trip instead — it has active bookings.");
       return;
     }
@@ -136,7 +132,7 @@ export default function AdminTrips() {
             key={editing?.id ?? "new"}
             trip={editing}
             trains={trains}
-            activeBookings={editing ? activeByTrip[editing.id] ?? 0 : 0}
+            activeBookings={editing ? activeCountForTrip(editing) : 0}
             onSaved={() => { setOpen(false); load(); }}
           />
         </Dialog>
@@ -159,26 +155,25 @@ export default function AdminTrips() {
             </thead>
             <tbody>
               {trips.map((t) => {
-                const isPast = new Date(t.departure_at).getTime() < Date.now();
-                const effective: Trip["status"] =
-                  t.status === "scheduled" && isPast ? "departed" : t.status;
+                const effective = getTripDisplayStatus(t, now);
+                const activeSeats = activeCountForTrip(t);
                 return (
                   <tr key={t.id} className="border-t border-border">
                     <td className="px-4 py-2 whitespace-nowrap">{t.trains?.code}</td>
                     <td className="px-4 py-2 whitespace-nowrap">{t.origin} → {t.destination}</td>
                     <td className="px-4 py-2 whitespace-nowrap">{format(new Date(t.departure_at), "yyyy-MM-dd HH:mm")}</td>
                     <td className="px-4 py-2 whitespace-nowrap">{format(new Date(t.arrival_at), "yyyy-MM-dd HH:mm")}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">{activeByTrip[t.id] ?? 0} / {t.total_seats}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">{activeSeats} / {t.total_seats}</td>
                     <td className="px-4 py-2 whitespace-nowrap">{Number(t.price_sar).toFixed(2)} SAR</td>
                     <td className="px-4 py-2 whitespace-nowrap">
-                      <span className={`rounded px-2 py-0.5 text-xs capitalize ${STATUS_BADGE[effective]}`}>{effective}</span>
+                      <span className={`rounded px-2 py-0.5 text-xs capitalize ${TRIP_STATUS_STYLE[effective]}`}>{effective}</span>
                     </td>
                     <td className="px-4 py-2 text-right">
                       <div className="inline-flex gap-1">
                         <Button size="icon" variant="ghost" onClick={() => openEdit(t)} title="Edit">
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        {effective === "scheduled" && (
+                        {effective === "active" && (
                           <Button size="icon" variant="ghost" onClick={() => cancelTrip(t)} title="Cancel">
                             <Ban className="h-4 w-4" />
                           </Button>
