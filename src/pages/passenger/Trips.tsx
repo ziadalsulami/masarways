@@ -173,6 +173,12 @@ export default function PassengerTrips() {
 
   const confirmBooking = async () => {
     if (!selected || !chosenSeat || !profile) return;
+    if (!isActiveTrip(selected, Date.now())) {
+      toast.error("This trip has already departed and can no longer be booked.");
+      await loadAll();
+      setSelectedId(null);
+      return;
+    }
     setBooking(true);
     const reference = newReference();
 
