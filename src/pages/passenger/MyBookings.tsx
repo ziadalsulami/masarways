@@ -64,6 +64,12 @@ export default function MyBookings() {
 
   useEffect(() => {
     load();
+    const channel = supabase
+      .channel("my-bookings-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "trips" }, () => load())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id]);
 
