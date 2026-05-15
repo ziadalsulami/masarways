@@ -36,7 +36,7 @@ import { ADMIN_NAV } from "./nav";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { Plus, Pencil, Ban, Trash2 } from "lucide-react";
-import { getTripDisplayStatus, TRIP_STATUS_STYLE, useMinuteNow } from "@/lib/trips";
+import { getTripDisplayStatus, isActiveTrip, TRIP_STATUS_STYLE, useMinuteNow } from "@/lib/trips";
 
 interface Train { id: string; code: string; name: string; }
 interface Trip {
@@ -72,8 +72,10 @@ export default function AdminTrips() {
     ]);
     setTrips((tripsRes.data ?? []) as Trip[]);
     setTrains((trainsRes.data ?? []) as Train[]);
+    const activeTripIds = new Set(((tripsRes.data ?? []) as Trip[]).filter((t) => isActiveTrip(t, now)).map((t) => t.id));
     const counts: Record<string, number> = {};
     (bookingsRes.data ?? []).forEach((b: any) => {
+      if (!activeTripIds.has(b.trip_id)) return;
       counts[b.trip_id] = (counts[b.trip_id] ?? 0) + 1;
     });
     setActiveByTrip(counts);
