@@ -76,6 +76,11 @@ export default function PassengerTrips() {
   // we filter the trips list client-side so the UX stays instant.
   const [filterDest, setFilterDest] = useState<string>("");
   const [filterDate, setFilterDate] = useState<string>(""); // yyyy-mm-dd
+  // Payment step state — after picking a seat, the user reviews booking
+  // details and selects a (mock) payment method before confirmation.
+  const [payOpen, setPayOpen] = useState(false);
+  const [payMethod, setPayMethod] = useState<"card" | "apple_pay">("card");
+  const [paying, setPaying] = useState(false);
   const now = useMinuteNow();
 
   /** Fetch trips + active bookings. Called on mount + on every Realtime event. */
