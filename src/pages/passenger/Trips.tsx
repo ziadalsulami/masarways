@@ -26,14 +26,16 @@ import AppShell from "@/components/AppShell";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { downloadReceipt } from "@/lib/pdf";
-import { TrainFront } from "lucide-react";
+import { TrainFront, CreditCard, Apple, CheckCircle2 } from "lucide-react";
 import Greeting from "@/components/Greeting";
 import SeatMap from "@/components/SeatMap";
 import { isActiveTrip, useMinuteNow } from "@/lib/trips";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -74,6 +76,11 @@ export default function PassengerTrips() {
   // we filter the trips list client-side so the UX stays instant.
   const [filterDest, setFilterDest] = useState<string>("");
   const [filterDate, setFilterDate] = useState<string>(""); // yyyy-mm-dd
+  // Payment step state — after picking a seat, the user reviews booking
+  // details and selects a (mock) payment method before confirmation.
+  const [payOpen, setPayOpen] = useState(false);
+  const [payMethod, setPayMethod] = useState<"card" | "apple_pay">("card");
+  const [paying, setPaying] = useState(false);
   const now = useMinuteNow();
 
   /** Fetch trips + active bookings. Called on mount + on every Realtime event. */
@@ -171,30 +178,50 @@ export default function PassengerTrips() {
     "MSR-" +
     Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6).padEnd(6, "X");
 
-  const confirmBooking = async () => {
+  // Step 1 — user clicked "Confirm" in the seat map. We don't book yet;
+  // we open the booking-review + payment-method dialog.
+  const openPayment = () => {
+    if (!selected || !chosenSeat) return;
+    if (!isActiveTrip(selected, Date.now())) {
+      toast.error("This trip has already departed and can no longer be booked.");
+      loadAll();
+      setSelectedId(null);
+      return;
+    }
+    setPayMethod("card");
+    setPayOpen(true);
+  };
+
+  // Step 2 — user picked a payment method. We run a short mock "processing"
+  // delay (no real payment fields), then insert the booking and download the
+  // receipt PDF.
+  const payAndBook = async () => {
     if (!selected || !chosenSeat || !profile) return;
     if (!isActiveTrip(selected, Date.now())) {
       toast.error("This trip has already departed and can no longer be booked.");
+      setPayOpen(false);
       await loadAll();
       setSelectedId(null);
       return;
     }
-    setBooking(true);
-    const reference = newReference();
+    setPaying(true);
+    // Mock payment processing — visual delay only, no card details collected.
+    await new Promise((r) => setTimeout(r, 900));
 
+    const reference = newReference();
     const { error } = await supabase.from("bookings").insert({
       reference,
       trip_id: selected.id,
       passenger_id: profile.id,
       seat_number: chosenSeat,
     });
-    setBooking(false);
 
     if (error) {
-      // 23505 = unique violation (seat just taken OR same trip already booked).
+      setPaying(false);
       if (error.code === "23505") {
         toast.error("That seat was just taken or you already booked this trip.");
         await loadAll();
+        setPayOpen(false);
       } else {
         toast.error(error.message);
       }
@@ -215,6 +242,9 @@ export default function PassengerTrips() {
       priceSar: Number(selected.price_sar),
     });
 
+    toast.success(`Payment successful via ${payMethod === "card" ? "Card" : "Apple Pay"}`);
+    setPaying(false);
+    setPayOpen(false);
     navigate(`/app/confirmation/${reference}`);
   };
 
@@ -384,13 +414,143 @@ export default function PassengerTrips() {
                 chosen={chosenSeat}
                 onChoose={setChosenSeat}
                 alreadyBooked={mineByTrip.has(selected.id)}
-                onConfirm={confirmBooking}
-                busy={booking}
+                onConfirm={openPayment}
+                busy={booking || paying}
               />
             </>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Payment-method dialog — shown after the seat is picked. Mock payment:
+          no card details are collected, but the user must choose a method. */}
+      <Dialog
+        open={payOpen}
+        onOpenChange={(open) => {
+          if (!paying) setPayOpen(open);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Review & pay</DialogTitle>
+            <DialogDescription>
+              Confirm your booking details and choose a payment method.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selected && chosenSeat && (
+            <div className="space-y-4">
+              {/* Booking summary */}
+              <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+                <Row label="Route" value={`${selected.origin} → ${selected.destination}`} />
+                <Row
+                  label="Train"
+                  value={`${selected.trains?.code ?? ""} · ${selected.trains?.name ?? ""}`}
+                />
+                <Row
+                  label="Departure"
+                  value={format(new Date(selected.departure_at), "EEE d MMM, HH:mm")}
+                />
+                <Row
+                  label="Arrival"
+                  value={format(new Date(selected.arrival_at), "EEE d MMM, HH:mm")}
+                />
+                <Row label="Seat" value={`#${chosenSeat}`} />
+                <Row label="Passenger" value={profile?.full_name ?? ""} />
+                <div className="mt-2 flex items-center justify-between border-t border-border pt-2 text-base">
+                  <span className="font-medium">Total</span>
+                  <span className="font-semibold">
+                    {Number(selected.price_sar).toFixed(2)} SAR
+                  </span>
+                </div>
+              </div>
+
+              {/* Payment method picker */}
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground">Payment method</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <PayMethodCard
+                    active={payMethod === "card"}
+                    onClick={() => setPayMethod("card")}
+                    icon={<CreditCard className="h-5 w-5" />}
+                    label="Card"
+                    sub="Visa · Mastercard · mada"
+                  />
+                  <PayMethodCard
+                    active={payMethod === "apple_pay"}
+                    onClick={() => setPayMethod("apple_pay")}
+                    icon={<Apple className="h-5 w-5" />}
+                    label="Apple Pay"
+                    sub="Pay with Touch / Face ID"
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Demo mode — no real charge is made.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPayOpen(false)} disabled={paying}>
+              Cancel
+            </Button>
+            <Button onClick={payAndBook} disabled={paying}>
+              {paying ? (
+                "Processing…"
+              ) : (
+                <>
+                  <CheckCircle2 className="mr-1 h-4 w-4" />
+                  Pay {selected ? Number(selected.price_sar).toFixed(2) : ""} SAR
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppShell>
+  );
+}
+
+/** Small label/value row used inside the payment review summary. */
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-0.5">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="truncate text-right text-sm">{value}</span>
+    </div>
+  );
+}
+
+/** Selectable payment-method card (mock — no fields collected). */
+function PayMethodCard({
+  active,
+  onClick,
+  icon,
+  label,
+  sub,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+  sub: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition ${
+        active
+          ? "border-primary bg-primary/5 ring-2 ring-primary/40"
+          : "border-border bg-card hover:border-primary/50"
+      }`}
+    >
+      <span className="flex items-center gap-2 text-sm font-medium">
+        {icon}
+        {label}
+      </span>
+      <span className="text-[11px] text-muted-foreground">{sub}</span>
+    </button>
   );
 }
