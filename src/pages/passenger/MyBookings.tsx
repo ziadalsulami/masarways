@@ -14,6 +14,7 @@ import { useAuth } from "@/lib/auth";
 import AppShell from "@/components/AppShell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -48,7 +49,14 @@ export default function MyBookings() {
   const { profile } = useAuth();
   const [rows, setRows] = useState<Booking[]>([]);
   const [managing, setManaging] = useState<Booking | null>(null);
+  const [search, setSearch] = useState("");
   const now = useMinuteNow();
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((b) => b.reference.toLowerCase().includes(q));
+  }, [rows, search]);
 
   const load = async () => {
     if (!profile) return;
@@ -114,8 +122,16 @@ export default function MyBookings() {
     >
       <h1 className="mb-6 text-2xl font-semibold">My bookings</h1>
 
+      <div className="mb-4 max-w-sm">
+        <Input
+          placeholder="Search by booking reference…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+
       <div className="grid gap-3">
-        {rows.map((b) => {
+        {filtered.map((b) => {
           const s = getBookingDisplayStatus(b, now);
           return (
             <Card
@@ -145,6 +161,9 @@ export default function MyBookings() {
           );
         })}
         {rows.length === 0 && <p className="text-muted-foreground">You have no bookings yet.</p>}
+        {rows.length > 0 && filtered.length === 0 && (
+          <p className="text-muted-foreground">No bookings match “{search}”.</p>
+        )}
       </div>
 
       {/* ── Manage booking dialog ─────────────────────────────────── */}
