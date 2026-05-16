@@ -480,7 +480,7 @@ export default function PassengerTrips() {
                   <PayMethodCard
                     active={payMethod === "apple_pay"}
                     onClick={() => setPayMethod("apple_pay")}
-                    icon={<Apple className="h-5 w-5" />}
+                    icon={<img src={appleLogo} alt="Apple Pay" className="h-5 w-5 object-contain dark:invert" />}
                     label="Apple Pay"
                     sub="Pay with Touch / Face ID"
                   />
