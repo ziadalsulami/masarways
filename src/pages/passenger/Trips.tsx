@@ -178,30 +178,50 @@ export default function PassengerTrips() {
     "MSR-" +
     Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6).padEnd(6, "X");
 
-  const confirmBooking = async () => {
+  // Step 1 — user clicked "Confirm" in the seat map. We don't book yet;
+  // we open the booking-review + payment-method dialog.
+  const openPayment = () => {
+    if (!selected || !chosenSeat) return;
+    if (!isActiveTrip(selected, Date.now())) {
+      toast.error("This trip has already departed and can no longer be booked.");
+      loadAll();
+      setSelectedId(null);
+      return;
+    }
+    setPayMethod("card");
+    setPayOpen(true);
+  };
+
+  // Step 2 — user picked a payment method. We run a short mock "processing"
+  // delay (no real payment fields), then insert the booking and download the
+  // receipt PDF.
+  const payAndBook = async () => {
     if (!selected || !chosenSeat || !profile) return;
     if (!isActiveTrip(selected, Date.now())) {
       toast.error("This trip has already departed and can no longer be booked.");
+      setPayOpen(false);
       await loadAll();
       setSelectedId(null);
       return;
     }
-    setBooking(true);
-    const reference = newReference();
+    setPaying(true);
+    // Mock payment processing — visual delay only, no card details collected.
+    await new Promise((r) => setTimeout(r, 900));
 
+    const reference = newReference();
     const { error } = await supabase.from("bookings").insert({
       reference,
       trip_id: selected.id,
       passenger_id: profile.id,
       seat_number: chosenSeat,
     });
-    setBooking(false);
 
     if (error) {
-      // 23505 = unique violation (seat just taken OR same trip already booked).
+      setPaying(false);
       if (error.code === "23505") {
         toast.error("That seat was just taken or you already booked this trip.");
         await loadAll();
+        setPayOpen(false);
       } else {
         toast.error(error.message);
       }
@@ -222,6 +242,9 @@ export default function PassengerTrips() {
       priceSar: Number(selected.price_sar),
     });
 
+    toast.success(`Payment successful via ${payMethod === "card" ? "Card" : "Apple Pay"}`);
+    setPaying(false);
+    setPayOpen(false);
     navigate(`/app/confirmation/${reference}`);
   };
 
