@@ -26,7 +26,8 @@ import AppShell from "@/components/AppShell";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { downloadReceipt } from "@/lib/pdf";
-import { TrainFront, CreditCard, Apple, CheckCircle2 } from "lucide-react";
+import { TrainFront, CreditCard, CheckCircle2 } from "lucide-react";
+import appleLogo from "@/assets/apple-pay-logo.png";
 import Greeting from "@/components/Greeting";
 import SeatMap from "@/components/SeatMap";
 import { isActiveTrip, useMinuteNow } from "@/lib/trips";
@@ -479,7 +480,7 @@ export default function PassengerTrips() {
                   <PayMethodCard
                     active={payMethod === "apple_pay"}
                     onClick={() => setPayMethod("apple_pay")}
-                    icon={<Apple className="h-5 w-5" />}
+                    icon={<img src={appleLogo} alt="Apple Pay" className="h-5 w-5 object-contain dark:invert" />}
                     label="Apple Pay"
                     sub="Pay with Touch / Face ID"
                   />
