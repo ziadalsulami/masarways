@@ -26,14 +26,16 @@ import AppShell from "@/components/AppShell";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { downloadReceipt } from "@/lib/pdf";
-import { TrainFront } from "lucide-react";
+import { TrainFront, CreditCard, Apple, CheckCircle2 } from "lucide-react";
 import Greeting from "@/components/Greeting";
 import SeatMap from "@/components/SeatMap";
 import { isActiveTrip, useMinuteNow } from "@/lib/trips";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
