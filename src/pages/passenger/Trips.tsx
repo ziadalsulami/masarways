@@ -421,6 +421,93 @@ export default function PassengerTrips() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Payment-method dialog — shown after the seat is picked. Mock payment:
+          no card details are collected, but the user must choose a method. */}
+      <Dialog
+        open={payOpen}
+        onOpenChange={(open) => {
+          if (!paying) setPayOpen(open);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Review & pay</DialogTitle>
+            <DialogDescription>
+              Confirm your booking details and choose a payment method.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selected && chosenSeat && (
+            <div className="space-y-4">
+              {/* Booking summary */}
+              <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+                <Row label="Route" value={`${selected.origin} → ${selected.destination}`} />
+                <Row
+                  label="Train"
+                  value={`${selected.trains?.code ?? ""} · ${selected.trains?.name ?? ""}`}
+                />
+                <Row
+                  label="Departure"
+                  value={format(new Date(selected.departure_at), "EEE d MMM, HH:mm")}
+                />
+                <Row
+                  label="Arrival"
+                  value={format(new Date(selected.arrival_at), "EEE d MMM, HH:mm")}
+                />
+                <Row label="Seat" value={`#${chosenSeat}`} />
+                <Row label="Passenger" value={profile?.full_name ?? ""} />
+                <div className="mt-2 flex items-center justify-between border-t border-border pt-2 text-base">
+                  <span className="font-medium">Total</span>
+                  <span className="font-semibold">
+                    {Number(selected.price_sar).toFixed(2)} SAR
+                  </span>
+                </div>
+              </div>
+
+              {/* Payment method picker */}
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground">Payment method</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <PayMethodCard
+                    active={payMethod === "card"}
+                    onClick={() => setPayMethod("card")}
+                    icon={<CreditCard className="h-5 w-5" />}
+                    label="Card"
+                    sub="Visa · Mastercard · mada"
+                  />
+                  <PayMethodCard
+                    active={payMethod === "apple_pay"}
+                    onClick={() => setPayMethod("apple_pay")}
+                    icon={<Apple className="h-5 w-5" />}
+                    label="Apple Pay"
+                    sub="Pay with Touch / Face ID"
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Demo mode — no real charge is made.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPayOpen(false)} disabled={paying}>
+              Cancel
+            </Button>
+            <Button onClick={payAndBook} disabled={paying}>
+              {paying ? (
+                "Processing…"
+              ) : (
+                <>
+                  <CheckCircle2 className="mr-1 h-4 w-4" />
+                  Pay {selected ? Number(selected.price_sar).toFixed(2) : ""} SAR
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }
