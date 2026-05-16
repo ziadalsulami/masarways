@@ -511,3 +511,46 @@ export default function PassengerTrips() {
     </AppShell>
   );
 }
+
+/** Small label/value row used inside the payment review summary. */
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-0.5">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="truncate text-right text-sm">{value}</span>
+    </div>
+  );
+}
+
+/** Selectable payment-method card (mock — no fields collected). */
+function PayMethodCard({
+  active,
+  onClick,
+  icon,
+  label,
+  sub,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+  sub: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition ${
+        active
+          ? "border-primary bg-primary/5 ring-2 ring-primary/40"
+          : "border-border bg-card hover:border-primary/50"
+      }`}
+    >
+      <span className="flex items-center gap-2 text-sm font-medium">
+        {icon}
+        {label}
+      </span>
+      <span className="text-[11px] text-muted-foreground">{sub}</span>
+    </button>
+  );
+}
