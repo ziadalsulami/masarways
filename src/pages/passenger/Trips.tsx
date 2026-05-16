@@ -414,8 +414,8 @@ export default function PassengerTrips() {
                 chosen={chosenSeat}
                 onChoose={setChosenSeat}
                 alreadyBooked={mineByTrip.has(selected.id)}
-                onConfirm={confirmBooking}
-                busy={booking}
+                onConfirm={openPayment}
+                busy={booking || paying}
               />
             </>
           )}
