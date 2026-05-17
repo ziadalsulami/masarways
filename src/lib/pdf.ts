@@ -18,7 +18,11 @@ export interface ReceiptData {
   destination: string;
   departure: string; // ISO
   arrival: string;   // ISO
-  seatNumber: number;
+  /** All seats included on this receipt (supports multi-ticket bookings). */
+  seatNumbers: number[];
+  adults: number;
+  kids: number;
+  /** Per-adult ticket price in SAR. Kids are billed at 50% of this. */
   priceSar: number;
 }
 
