@@ -67,14 +67,21 @@ export function downloadReceipt(d: ReceiptData) {
     doc.text(value, left + 140, y);
   };
 
+  const adultTotal = d.adults * d.priceSar;
+  const kidTotal = d.kids * d.priceSar * 0.5;
+  const grandTotal = adultTotal + kidTotal;
+
   row("Passenger:",   d.passengerName);
   row("MASAR ID:",    d.masarId);
   row("Train:",       `${d.trainCode} — ${d.trainName}`);
   row("Route:",       `${d.origin} → ${d.destination}`);
   row("Departure:",   format(new Date(d.departure), "yyyy-MM-dd HH:mm"));
   row("Arrival:",     format(new Date(d.arrival),   "yyyy-MM-dd HH:mm"));
-  row("Seat:",        `#${d.seatNumber}`);
-  row("Price:",       `${d.priceSar.toFixed(2)} SAR`);
+  row("Seats:",       d.seatNumbers.map((n) => `#${n}`).join(", "));
+  row("Tickets:",     `${d.adults} adult${d.adults === 1 ? "" : "s"}, ${d.kids} kid${d.kids === 1 ? "" : "s"} (kids 50% off)`);
+  row("Adults:",      `${d.adults} × ${d.priceSar.toFixed(2)} = ${adultTotal.toFixed(2)} SAR`);
+  row("Kids:",        `${d.kids} × ${(d.priceSar * 0.5).toFixed(2)} = ${kidTotal.toFixed(2)} SAR`);
+  row("Total:",       `${grandTotal.toFixed(2)} SAR`);
 
   // Notes
   y += 30;
