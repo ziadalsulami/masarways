@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS public.uniq_active_booking_per_passenger_trip;
