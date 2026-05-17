@@ -1,17 +1,14 @@
 /**
  * Visual TRAIN-CARRIAGE seat map.
  *
- * Layout:
- *   - Locomotive nose at the top (just decoration to evoke a train).
- *   - Rows of 4 seats arranged 2 + aisle + 2 (A B | C D).
- *   - Numbering goes row by row, left to right, so seat #1 is row 1 / A.
- *   - Trailing seats (when total_seats is not a multiple of 4) are placed
- *     in the last row from left to right and remaining slots are blank.
+ * Supports multi-seat selection (a single passenger may now book several
+ * tickets for adults + kids under their own name). The parent owns the
+ * `chosen` Set and we toggle entries in/out via `onToggle`.
  *
  * Status colours:
  *   - taken     → muted, struck through (disabled)
- *   - your seat → primary outline (you can't book this trip again)
- *   - chosen    → solid primary (current selection)
+ *   - your seat → green outline (already booked by you on this trip)
+ *   - chosen    → solid green (current selection — possibly multiple)
  *   - free      → bordered card surface, hover hint
  */
 import { Button } from "@/components/ui/button";
@@ -20,10 +17,10 @@ import { TrainFront } from "lucide-react";
 export interface SeatMapProps {
   totalSeats: number;
   taken: Set<number>;
-  ownSeat?: number;
-  chosen: number | null;
-  onChoose: (n: number) => void;
-  alreadyBooked: boolean;
+  ownSeats?: Set<number>;
+  chosen: Set<number>;
+  onToggle: (n: number) => void;
+  maxSelectable: number;
   onConfirm: () => void;
   busy: boolean;
 }
@@ -31,24 +28,22 @@ export interface SeatMapProps {
 export default function SeatMap({
   totalSeats,
   taken,
-  ownSeat,
+  ownSeats,
   chosen,
-  onChoose,
-  alreadyBooked,
+  onToggle,
+  maxSelectable,
   onConfirm,
   busy,
 }: SeatMapProps) {
-  // Build rows of up to 4 seats each.
   const rows: number[][] = [];
   for (let i = 1; i <= totalSeats; i += 4) {
     rows.push([i, i + 1, i + 2, i + 3].filter((n) => n <= totalSeats));
   }
 
+  const atLimit = chosen.size >= maxSelectable;
+
   return (
     <div>
-      {/* Legend — explicit colours per spec: white/light = available, green = selected, grey = taken.
-          Colours are forced (not theme-tokenised) so the three states are always
-          visually distinct in both light and dark mode. */}
       <div className="mb-4 flex flex-wrap gap-3 text-xs text-muted-foreground">
         <Legend className="border border-gray-300 bg-white" label="Available" />
         <Legend className="bg-green-600" label="Selected" />
@@ -56,23 +51,18 @@ export default function SeatMap({
         <Legend className="bg-gray-400" label="Taken" />
       </div>
 
-      {/* The carriage */}
       <div className="mx-auto max-w-sm">
-        {/* Locomotive nose */}
         <div className="mx-auto flex w-32 flex-col items-center">
           <div className="flex h-10 w-32 items-center justify-center rounded-t-[50%] border-2 border-b-0 border-border bg-card text-primary">
             <TrainFront className="h-5 w-5" />
           </div>
         </div>
 
-        {/* Carriage body */}
         <div className="rounded-2xl border-2 border-border bg-card/50 p-4 shadow-inner">
-          {/* Driver / front label */}
           <div className="mb-3 text-center text-[10px] uppercase tracking-widest text-muted-foreground">
             ◀ Front of train
           </div>
 
-          {/* Column letters header */}
           <div className="mb-2 grid grid-cols-[1.25rem_1fr_1.25rem_1fr_1.25rem] items-center gap-1 text-center text-[10px] text-muted-foreground">
             <span />
             <div className="grid grid-cols-2 gap-1">
@@ -87,50 +77,44 @@ export default function SeatMap({
             <span />
           </div>
 
-          {/* Seat rows */}
           <div className="space-y-1.5">
             {rows.map((row, idx) => (
               <div
                 key={idx}
                 className="grid grid-cols-[1.25rem_1fr_1.25rem_1fr_1.25rem] items-center gap-1"
               >
-                {/* Row number */}
                 <span className="text-center text-[10px] text-muted-foreground">{idx + 1}</span>
 
-                {/* Left pair (A, B) */}
                 <div className="grid grid-cols-2 gap-1">
                   {[row[0], row[1]].map((n, i) => (
                     <Seat
                       key={i}
                       n={n}
                       taken={n ? taken.has(n) : false}
-                      ownSeat={ownSeat}
+                      ownSeats={ownSeats}
                       chosen={chosen}
-                      alreadyBooked={alreadyBooked}
-                      onChoose={onChoose}
+                      atLimit={atLimit}
+                      onToggle={onToggle}
                     />
                   ))}
                 </div>
 
-                {/* Aisle */}
                 <span className="text-center text-[10px] text-muted-foreground/60">|</span>
 
-                {/* Right pair (C, D) */}
                 <div className="grid grid-cols-2 gap-1">
                   {[row[2], row[3]].map((n, i) => (
                     <Seat
                       key={i}
                       n={n}
                       taken={n ? taken.has(n) : false}
-                      ownSeat={ownSeat}
+                      ownSeats={ownSeats}
                       chosen={chosen}
-                      alreadyBooked={alreadyBooked}
-                      onChoose={onChoose}
+                      atLimit={atLimit}
+                      onToggle={onToggle}
                     />
                   ))}
                 </div>
 
-                {/* Right edge */}
                 <span />
               </div>
             ))}
@@ -142,54 +126,53 @@ export default function SeatMap({
         </div>
       </div>
 
-      {/* Confirm bar */}
-      <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
+      <div className="mt-5 flex items-center justify-between gap-3 border-t border-border pt-4">
         <div className="text-sm">
-          {alreadyBooked ? (
+          {chosen.size === 0 ? (
             <span className="text-muted-foreground">
-              You already booked this trip (seat #{ownSeat}).
+              Pick {maxSelectable === 1 ? "a seat" : `up to ${maxSelectable} seats`}.
             </span>
           ) : (
             <span>
-              Selected seat: <strong>{chosen ?? "—"}</strong>
+              Selected: <strong>{[...chosen].sort((a, b) => a - b).map((n) => `#${n}`).join(", ")}</strong>{" "}
+              <span className="text-muted-foreground">({chosen.size}/{maxSelectable})</span>
             </span>
           )}
         </div>
-        <Button onClick={onConfirm} disabled={!chosen || busy || alreadyBooked}>
-          {busy ? "Booking…" : "Confirm booking"}
+        <Button onClick={onConfirm} disabled={chosen.size === 0 || chosen.size !== maxSelectable || busy}>
+          {busy ? "Booking…" : "Continue"}
         </Button>
       </div>
     </div>
   );
 }
 
-/** Single seat button — handles all the colour logic. */
 function Seat({
   n,
   taken,
-  ownSeat,
+  ownSeats,
   chosen,
-  alreadyBooked,
-  onChoose,
+  atLimit,
+  onToggle,
 }: {
   n: number | undefined;
   taken: boolean;
-  ownSeat?: number;
-  chosen: number | null;
-  alreadyBooked: boolean;
-  onChoose: (n: number) => void;
+  ownSeats?: Set<number>;
+  chosen: Set<number>;
+  atLimit: boolean;
+  onToggle: (n: number) => void;
 }) {
-  // Empty slot when the row is partially filled (last row of an odd carriage).
   if (!n) return <span className="h-9 rounded" />;
 
-  const isOwn = ownSeat === n;
+  const isOwn = ownSeats?.has(n) ?? false;
   const isTaken = taken && !isOwn;
-  const isChosen = chosen === n;
+  const isChosen = chosen.has(n);
+  const disabled = isTaken || isOwn || (atLimit && !isChosen);
 
   return (
     <button
-      disabled={isTaken || alreadyBooked}
-      onClick={() => onChoose(n)}
+      disabled={disabled}
+      onClick={() => onToggle(n)}
       title={isTaken ? "Taken" : isOwn ? "Your seat" : `Seat ${n}`}
       className={`h-9 rounded-md text-xs font-semibold transition ${
         isTaken
@@ -198,6 +181,8 @@ function Seat({
           ? "border-2 border-green-600 bg-green-600/20 text-green-700 dark:text-green-300"
           : isChosen
           ? "scale-105 bg-green-600 text-white shadow ring-2 ring-green-400"
+          : atLimit
+          ? "cursor-not-allowed border border-gray-200 bg-gray-50 text-gray-400"
           : "border border-gray-300 bg-white text-gray-800 hover:border-green-600 hover:bg-green-50"
       }`}
     >

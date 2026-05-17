@@ -48,7 +48,9 @@ export default function Confirmation() {
       destination: trip.destination,
       departure: trip.departure_at,
       arrival: trip.arrival_at,
-      seatNumber: data.seat_number,
+      seatNumbers: [data.seat_number],
+      adults: 1,
+      kids: 0,
       priceSar: Number(trip.price_sar),
     });
 

@@ -103,7 +103,9 @@ export default function MyBookings() {
       destination: b.trips.destination,
       departure: b.trips.departure_at,
       arrival: b.trips.arrival_at,
-      seatNumber: b.seat_number,
+      seatNumbers: [b.seat_number],
+      adults: 1,
+      kids: 0,
       priceSar: Number(b.trips.price_sar),
     });
   };
